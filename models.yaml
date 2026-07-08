@@ -1,0 +1,56 @@
+models:
+  imple-fast:
+    runtime_profile: local_ollama_cuda0
+    real_model: qwen36-27b-q4km:latest
+    context: 131072
+    lifecycle_policy: persistent
+    clients:
+      opencode: true
+      claude-code: true
+
+  review-cloud:
+    runtime_profile: cloud_minimax
+    real_model: minimax-m3
+    lifecycle_policy: cloud_noop
+    clients:
+      opencode: true
+      claude-code: false
+
+  llama-test:
+    runtime_profile: local_llamacpp_cuda0
+    model_path: ${MODEL_ROOT_GGUF}/test.gguf
+    context: 65536
+    gpu_layers: 35
+    lifecycle_policy: stop_after_step
+    clients:
+      opencode: true
+      claude-code: true
+
+runtime_profiles:
+  local_ollama_cuda0:
+    backend: ollama
+    api_base_env: OLLAMA_BASE_URL
+    default_api_base: http://127.0.0.1:11434
+    gpu: cuda0
+
+  local_llamacpp_cuda0:
+    backend: llama_cpp
+    # Example paths are illustrative only; real values come from env vars.
+    server_bin_env: LLAMA_SERVER_BIN
+    model_root_env: MODEL_ROOT_GGUF
+    default_gpu_layers: 99
+    default_ctx: 131072
+    gpu: cuda0
+
+  cloud_minimax:
+    backend: openai_compatible
+    api_base_env: MINIMAX_API_BASE
+    api_key_env: MINIMAX_API_KEY
+    provider: minimax
+
+roles:
+  imple01:
+    default_alias: imple-fast
+    client_aliases:
+      opencode: imple-fast
+      claude-code: imple-fast

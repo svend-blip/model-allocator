@@ -1,0 +1,6 @@
+runtime_profiles:
+  local_ollama_cuda0:
+    backend: ollama
+    api_base_env: OLLAMA_BASE_URL
+    default_api_base: http://127.0.0.1:11434
+    gpu: cuda0

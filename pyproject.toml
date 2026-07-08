@@ -1,0 +1,22 @@
+[project]
+name = "model-allocator"
+version = "0.1.0"
+description = "DPMtF Model Allocator — runtime/model alias layer"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = []
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[project.scripts]
+model-allocator = "model_allocator.cli:main"

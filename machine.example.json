@@ -1,0 +1,7 @@
+{
+  "machine_id": "impe01p-machine",
+  "machine_name": "DPMtF Primary AI PC",
+  "primary_gpu": "cuda0",
+  "available_gpus": ["cuda0"],
+  "notes": "Machine-specific paths and secrets are read from environment variables, not from this file."
+}
