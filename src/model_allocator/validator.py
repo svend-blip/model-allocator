@@ -5,7 +5,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
+import os
+
+from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import ollama as ollama_adapter
+from model_allocator.adapters import openai_compatible as openai_adapter
 from model_allocator.resolver import ResolutionError, Resolver
 
 
@@ -56,15 +60,20 @@ class Validator:
         elif not isinstance(context, int) or context <= 0:
             result["warnings"].append(f"Context value invalid: {context}")
 
+        self._check_client_backend_compatibility(resolved, client, result)
+
         backend = resolved.get("backend")
         if backend == "ollama":
             self._validate_ollama(resolved, client, result)
+        elif backend == "openai_compatible":
+            self._validate_openai_compatible(resolved, client, result)
+        elif backend == "llama_cpp":
+            self._validate_llama_cpp(resolved, client, result)
         elif backend is None:
             result["errors"].append("Backend not declared in runtime profile")
             result["validation_status"] = "ERROR"
         else:
-            # Adapter not implemented in V1A.
-            result["errors"].append(f"Backend adapter '{backend}' is not implemented in V1A")
+            result["errors"].append(f"Backend adapter '{backend}' is not implemented")
             result["validation_status"] = "ERROR"
 
         if result["errors"]:
@@ -72,6 +81,23 @@ class Validator:
         elif result["warnings"]:
             result["validation_status"] = "WARNING"
         return result
+
+    def _check_client_backend_compatibility(self, resolved: dict, client: str, result: dict) -> None:
+        backend = resolved.get("backend")
+        provider = resolved.get("provider", "")
+        if client == "claude-code":
+            if backend == "ollama":
+                return
+            if backend == "openai_compatible" and provider != "minimax":
+                return
+            result["errors"].append(
+                f"Client 'claude-code' is incompatible with backend '{backend}' (provider '{provider}')"
+            )
+            result["validation_status"] = "ERROR"
+            return
+        if backend == "llama_cpp" and client != "opencode":
+            result["errors"].append(f"Client '{client}' is not supported for llama.cpp backend")
+            result["validation_status"] = "ERROR"
 
     def _validate_ollama(self, resolved: dict, client: str, result: dict) -> None:
         api_base_env = resolved.get("api_base_env", "OLLAMA_BASE_URL")
@@ -90,6 +116,48 @@ class Validator:
         if not available["available"]:
             result["warnings"].append(f"Ollama model not available: {available['error']}")
             result["client_support"][client] = "MODEL_MISSING"
+
+    def _validate_openai_compatible(self, resolved: dict, client: str, result: dict) -> None:
+        api_base_env = resolved.get("api_base_env")
+        api_key_env = resolved.get("api_key_env")
+        if not api_base_env:
+            result["warnings"].append("No API base environment variable configured")
+        if not api_key_env:
+            result["warnings"].append("No API key environment variable configured")
+
+        api_base = openai_adapter.OpenAICompatibleAdapter.api_base_from_profile(resolved)
+        result["resolved_api_base"] = api_base
+        adapter = openai_adapter.OpenAICompatibleAdapter(api_base=api_base, api_key_env=api_key_env or "")
+
+        credentials = adapter.are_credentials_present()
+        if not credentials["present"]:
+            result["warnings"].append(credentials["error"])
+
+        reachable = adapter.is_api_reachable()
+        if not reachable["reachable"]:
+            result["warnings"].append(f"Cloud API base unreachable: {reachable['error']}")
+
+        if not credentials["present"] or not reachable["reachable"]:
+            result["client_support"][client] = "UNREACHABLE"
+
+    def _validate_llama_cpp(self, resolved: dict, client: str, result: dict) -> None:
+        try:
+            adapter = llama_cpp_adapter.LlamaCppAdapter(resolved)
+            server_bin = adapter.server_bin()
+            if not os.path.isfile(server_bin):
+                result["warnings"].append(f"llama-server binary not found: {server_bin}")
+            model_path = adapter.model_path()
+            if not os.path.isfile(model_path):
+                result["warnings"].append(f"Model file not found: {model_path}")
+            status = adapter.status()
+            if status["running"]:
+                result["client_support"][client] = "OK"
+            else:
+                result["warnings"].append(f"llama.cpp server not running on port {adapter.port}: {status['error']}")
+                result["client_support"][client] = "NOT_RUNNING"
+        except llama_cpp_adapter.LlamaCppAdapterError as exc:
+            result["warnings"].append(str(exc))
+            result["client_support"][client] = "UNREACHABLE"
 
     def format_output(self, result: dict) -> str:
         lines = [result["validation_status"]]

@@ -4,3 +4,26 @@ runtime_profiles:
     api_base_env: OLLAMA_BASE_URL
     default_api_base: http://127.0.0.1:11434
     gpu: cuda0
+
+  local_llamacpp_cuda0:
+    backend: llama_cpp
+    # Example paths are illustrative only; real values come from env vars.
+    server_bin_env: LLAMA_SERVER_BIN
+    model_root_env: MODEL_ROOT_GGUF
+    default_port: 8080
+    default_gpu_layers: 99
+    default_ctx: 131072
+    gpu: cuda0
+
+  cloud_minimax:
+    backend: openai_compatible
+    api_base_env: MINIMAX_API_BASE
+    api_key_env: MINIMAX_API_KEY
+    provider: minimax
+
+  cloud_openrouter:
+    backend: openai_compatible
+    api_base_env: OPENROUTER_API_BASE
+    api_key_env: OPENROUTER_API_KEY
+    default_api_base: https://openrouter.ai/api
+    provider: openrouter

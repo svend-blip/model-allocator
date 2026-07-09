@@ -5,11 +5,12 @@ runtime_profiles:
     default_api_base: http://127.0.0.1:11434
     gpu: cuda0
 
-  # The profiles below are illustrative and not implemented in V1A.
+  # local_llamacpp_cuda0 is illustrative; paths below are for documentation only.
   local_llamacpp_cuda0:
     backend: llama_cpp
     server_bin: /home/svend/bin/llama-server
     model_root: /home/svend/ai-data/models/gguf
+    default_port: 8080
     default_gpu_layers: 99
     default_ctx: 131072
     gpu: cuda0
@@ -19,3 +20,10 @@ runtime_profiles:
     api_base_env: MINIMAX_API_BASE
     api_key_env: MINIMAX_API_KEY
     provider: minimax
+
+  cloud_openrouter:
+    backend: openai_compatible
+    api_base_env: OPENROUTER_API_BASE
+    api_key_env: OPENROUTER_API_KEY
+    default_api_base: https://openrouter.ai/api
+    provider: openrouter

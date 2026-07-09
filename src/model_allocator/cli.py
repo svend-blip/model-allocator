@@ -1,4 +1,4 @@
-"""Command-line interface for model-allocator V1B."""
+"""Command-line interface for model-allocator V2."""
 
 from __future__ import annotations
 
@@ -10,8 +10,11 @@ from typing import Sequence
 
 from model_allocator.resolver import ResolutionError, Resolver
 from model_allocator.validator import Validator
+from model_allocator.adapters import claude_code
+from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import opencode
 from model_allocator.adapters import ollama as ollama_adapter
+from model_allocator.adapters import openai_compatible as openai_adapter
 from model_allocator.renderer import render_tmux_shell_string
 
 
@@ -23,7 +26,6 @@ EXIT_USAGE = 64
 
 def _default_config_dir() -> str:
     """Default config directory: model-allocator repo root if detectable, else cwd."""
-    # cli.py lives at src/model_allocator/cli.py; the repo root is three parents up.
     repo_root = Path(__file__).resolve().parent.parent.parent
     if (repo_root / "models.yaml").exists():
         return str(repo_root)
@@ -32,6 +34,25 @@ def _default_config_dir() -> str:
 
 def _config_dir(args: argparse.Namespace) -> str:
     return args.config_dir if hasattr(args, "config_dir") and args.config_dir else _default_config_dir()
+
+
+def _get_backend_adapter(resolved: dict):
+    backend = resolved.get("backend")
+    if backend == "ollama":
+        api_base = ollama_adapter.OllamaAdapter.api_base_from_profile(resolved)
+        return ollama_adapter.OllamaAdapter(
+            api_base=api_base,
+            real_model=resolved.get("real_model", ""),
+            context=resolved.get("context"),
+        )
+    if backend == "openai_compatible":
+        return openai_adapter.OpenAICompatibleAdapter(
+            api_base=openai_adapter.OpenAICompatibleAdapter.api_base_from_profile(resolved),
+            api_key_env=resolved.get("api_key_env", ""),
+        )
+    if backend == "llama_cpp":
+        return llama_cpp_adapter.LlamaCppAdapter(resolved)
+    raise ValueError(f"Unsupported backend: {backend}")
 
 
 def cmd_resolve(args: argparse.Namespace) -> int:
@@ -82,22 +103,31 @@ def cmd_status(args: argparse.Namespace) -> int:
     except ResolutionError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_ERROR
-    backend = resolved.get("backend")
-    if backend != "ollama":
-        print(f"ERROR: status command for backend '{backend}' is not implemented in V1B", file=sys.stderr)
+
+    try:
+        adapter = _get_backend_adapter(resolved)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_ERROR
-    api_base = ollama_adapter.OllamaAdapter.api_base_from_profile(resolved)
-    adapter = ollama_adapter.OllamaAdapter(api_base=api_base, real_model=resolved.get("real_model", ""))
-    report = {
-        "alias": args.alias,
-        "backend": backend,
-        "api_base": api_base,
-        "reachable": adapter.is_api_reachable(),
-        "model_available": adapter.is_model_available(),
-        "runtime": adapter.runtime_status(),
-    }
+
+    backend = resolved.get("backend")
+    report = {"alias": args.alias, "backend": backend}
+    if backend == "ollama":
+        report.update({
+            "api_base": adapter.api_base,
+            "reachable": adapter.is_api_reachable(),
+            "model_available": adapter.is_model_available(),
+            "runtime": adapter.runtime_status(),
+        })
+    elif backend == "openai_compatible":
+        report.update(adapter.status())
+    elif backend == "llama_cpp":
+        report.update(adapter.status())
+
     print(json.dumps(report, indent=2, default=str))
-    if not report["reachable"]["reachable"]:
+    if backend == "ollama" and not report["reachable"]["reachable"]:
+        return EXIT_WARNING
+    if backend in ("openai_compatible", "llama_cpp") and not report.get("running", False):
         return EXIT_WARNING
     return EXIT_OK
 
@@ -111,24 +141,22 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
-    if resolved.get("backend") != "ollama":
-        print(f"ERROR: run command for backend '{resolved.get('backend')}' is not implemented in V1B", file=sys.stderr)
-        return EXIT_ERROR
-
     clients = resolved.get("clients", {})
     if not clients.get(args.client):
         print(f"ERROR: client '{args.client}' is not supported by alias '{resolved.get('alias')}'", file=sys.stderr)
         return EXIT_ERROR
 
-    if args.client == "opencode":
-        config_dir = resolved.get("config_dir") or args.role
-        try:
+    try:
+        if args.client == "opencode":
+            config_dir = resolved.get("config_dir") or args.role
             command_object = opencode.build_opencode_command(resolved, config_dir)
-        except ValueError as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
+        elif args.client == "claude-code":
+            command_object = claude_code.build_claude_code_command(resolved)
+        else:
+            print(f"ERROR: run command for client '{args.client}' is not implemented in V2", file=sys.stderr)
             return EXIT_ERROR
-    else:
-        print(f"ERROR: run command for client '{args.client}' is not implemented in V1B", file=sys.stderr)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
     shell_string = render_tmux_shell_string(command_object)
@@ -137,7 +165,6 @@ def cmd_run(args: argparse.Namespace) -> int:
 
 
 def cmd_start(args: argparse.Namespace) -> int:
-    """Warm up the backend runtime for an alias."""
     resolver = Resolver(config_dir=_config_dir(args))
     try:
         resolved = resolver.resolve_alias(args.alias)
@@ -145,25 +172,30 @@ def cmd_start(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
-    if resolved.get("backend") != "ollama":
-        print(f"ERROR: start command for backend '{resolved.get('backend')}' is not implemented in V1B", file=sys.stderr)
+    try:
+        adapter = _get_backend_adapter(resolved)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
-    api_base = ollama_adapter.OllamaAdapter.api_base_from_profile(resolved)
-    adapter = ollama_adapter.OllamaAdapter(
-        api_base=api_base,
-        real_model=resolved.get("real_model", ""),
-        context=resolved.get("context"),
-    )
-    result = adapter.start_model()
+    backend = resolved.get("backend")
+    if backend == "ollama":
+        result = adapter.start_model()
+    elif backend == "openai_compatible":
+        result = adapter.start()
+    elif backend == "llama_cpp":
+        result = adapter.start(timeout=args.timeout)
+    else:
+        print(f"ERROR: start not implemented for backend '{backend}'", file=sys.stderr)
+        return EXIT_ERROR
+
     print(json.dumps(result, indent=2, default=str))
-    if result["started"]:
+    if result.get("started"):
         return EXIT_OK
     return EXIT_WARNING
 
 
 def cmd_stop(args: argparse.Namespace) -> int:
-    """Stop the backend runtime for an alias."""
     resolver = Resolver(config_dir=_config_dir(args))
     try:
         resolved = resolver.resolve_alias(args.alias)
@@ -171,27 +203,143 @@ def cmd_stop(args: argparse.Namespace) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
-    if resolved.get("backend") != "ollama":
-        print(f"ERROR: stop command for backend '{resolved.get('backend')}' is not implemented in V1B", file=sys.stderr)
+    try:
+        adapter = _get_backend_adapter(resolved)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_ERROR
 
-    api_base = ollama_adapter.OllamaAdapter.api_base_from_profile(resolved)
-    adapter = ollama_adapter.OllamaAdapter(
-        api_base=api_base,
-        real_model=resolved.get("real_model", ""),
-        context=resolved.get("context"),
-    )
-    result = adapter.stop_model(timeout=args.timeout)
+    backend = resolved.get("backend")
+    if backend == "ollama":
+        result = adapter.stop_model(timeout=args.timeout)
+    elif backend == "openai_compatible":
+        result = adapter.stop()
+    elif backend == "llama_cpp":
+        result = adapter.stop(timeout=args.timeout)
+    else:
+        print(f"ERROR: stop not implemented for backend '{backend}'", file=sys.stderr)
+        return EXIT_ERROR
+
     print(json.dumps(result, indent=2, default=str))
-    if result["stopped"]:
+    if result.get("stopped"):
         return EXIT_OK
     return EXIT_ERROR
+
+
+def cmd_unload(args: argparse.Namespace) -> int:
+    resolver = Resolver(config_dir=_config_dir(args))
+    try:
+        resolved = resolver.resolve_alias(args.alias)
+    except ResolutionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    try:
+        adapter = _get_backend_adapter(resolved)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    backend = resolved.get("backend")
+    if backend == "ollama":
+        result = adapter.stop_model(timeout=args.timeout)
+    elif backend == "openai_compatible":
+        result = adapter.unload()
+    elif backend == "llama_cpp":
+        result = adapter.unload(timeout=args.timeout)
+    else:
+        print(f"ERROR: unload not implemented for backend '{backend}'", file=sys.stderr)
+        return EXIT_ERROR
+
+    print(json.dumps(result, indent=2, default=str))
+    if result.get("stopped") or result.get("unloaded"):
+        return EXIT_OK
+    return EXIT_ERROR
+
+
+def cmd_preflight(args: argparse.Namespace) -> int:
+    """Resolve + validate + start + status in one shot."""
+    resolver = Resolver(config_dir=_config_dir(args))
+    validator = Validator(resolver=resolver)
+    try:
+        resolved = resolver.resolve_role_client(args.role, args.client)
+    except ResolutionError as exc:
+        print(f"NOT READY: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    alias = resolved.get("alias", "")
+    backend = resolved.get("backend", "")
+    validation = validator.validate(alias, args.client)
+    if validation["validation_status"] == "ERROR":
+        print(f"NOT READY: validation failed: {'; '.join(validation['errors'])}", file=sys.stderr)
+        return EXIT_ERROR
+
+    try:
+        adapter = _get_backend_adapter(resolved)
+    except ValueError as exc:
+        print(f"NOT READY: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    if backend == "ollama":
+        start_result = adapter.start_model()
+    elif backend == "openai_compatible":
+        start_result = adapter.start()
+    elif backend == "llama_cpp":
+        start_result = adapter.start(timeout=args.start_timeout)
+    else:
+        print(f"NOT READY: backend '{backend}' not supported", file=sys.stderr)
+        return EXIT_ERROR
+
+    if not start_result.get("started"):
+        print(f"NOT READY: start failed: {start_result.get('error')}", file=sys.stderr)
+        return EXIT_ERROR
+
+    print(f"READY: {alias} ({backend}) for client {args.client}")
+    return EXIT_OK
+
+
+def cmd_env(args: argparse.Namespace) -> int:
+    """Print export statements for Claude Code environment variables."""
+    resolver = Resolver(config_dir=_config_dir(args))
+    try:
+        resolved = resolver.resolve_role_client(args.role, args.client)
+    except ResolutionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    try:
+        command_object = claude_code.build_claude_code_command(resolved)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    for key, value in command_object["env"].items():
+        print(f"export {key}={value}")
+    return EXIT_OK
+
+
+def cmd_render_config(args: argparse.Namespace) -> int:
+    """Emit opencode.json content for a role/client."""
+    resolver = Resolver(config_dir=_config_dir(args))
+    try:
+        resolved = resolver.resolve_role_client(args.role, args.client)
+    except ResolutionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    if args.client != "opencode":
+        print(f"ERROR: render-config only supports client 'opencode', got '{args.client}'", file=sys.stderr)
+        return EXIT_ERROR
+
+    config = opencode.build_opencode_config(resolved)
+    print(json.dumps(config, indent=2, default=str))
+    return EXIT_OK
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="model-allocator",
-        description="DPMtF Model Allocator — V1B First bridgeV002 Pilot",
+        description="DPMtF Model Allocator — V2",
     )
     parser.add_argument(
         "--config-dir",
@@ -222,17 +370,39 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_run = sub.add_parser("run", help="Render the tmux-safe shell string for a role/client")
     p_run.add_argument("--role", required=True, help="Role key")
-    p_run.add_argument("--client", required=True, help="Client key (e.g. opencode)")
+    p_run.add_argument("--client", required=True, help="Client key (e.g. opencode, claude-code)")
     p_run.set_defaults(func=cmd_run)
 
     p_start = sub.add_parser("start", help="Warm up the backend runtime for an alias")
     p_start.add_argument("--alias", required=True, help="Logical alias name")
+    p_start.add_argument("--timeout", type=int, default=120, help="Timeout in seconds")
     p_start.set_defaults(func=cmd_start)
 
     p_stop = sub.add_parser("stop", help="Stop the backend runtime for an alias")
     p_stop.add_argument("--alias", required=True, help="Logical alias name")
-    p_stop.add_argument("--timeout", type=int, default=30, help="Timeout in seconds for the stop command")
+    p_stop.add_argument("--timeout", type=int, default=30, help="Timeout in seconds")
     p_stop.set_defaults(func=cmd_stop)
+
+    p_unload = sub.add_parser("unload", help="Free model memory for an alias")
+    p_unload.add_argument("--alias", required=True, help="Logical alias name")
+    p_unload.add_argument("--timeout", type=int, default=30, help="Timeout in seconds")
+    p_unload.set_defaults(func=cmd_unload)
+
+    p_preflight = sub.add_parser("preflight", help="Resolve + validate + start + reachability check")
+    p_preflight.add_argument("--role", required=True, help="Role key")
+    p_preflight.add_argument("--client", required=True, help="Client key")
+    p_preflight.add_argument("--start-timeout", type=int, default=120, help="Start timeout in seconds")
+    p_preflight.set_defaults(func=cmd_preflight)
+
+    p_env = sub.add_parser("env", help="Print Claude Code environment variables as export statements")
+    p_env.add_argument("--role", required=True, help="Role key")
+    p_env.add_argument("--client", required=True, help="Client key (claude-code)")
+    p_env.set_defaults(func=cmd_env)
+
+    p_render = sub.add_parser("render-config", help="Emit opencode.json content for a role/client")
+    p_render.add_argument("--role", required=True, help="Role key")
+    p_render.add_argument("--client", required=True, help="Client key (opencode)")
+    p_render.set_defaults(func=cmd_render_config)
 
     return parser
 

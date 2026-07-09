@@ -4,4 +4,16 @@ roles:
     config_dir: imple01
     client_aliases:
       opencode: imple01-local
-      claude-code: imple-fast
+      claude-code: imple01-claude
+
+  claude-test:
+    default_alias: imple01-claude
+    config_dir: claude-test
+    client_aliases:
+      claude-code: imple01-claude
+
+  openrouter-test:
+    default_alias: openrouter-test
+    config_dir: openrouter-test
+    client_aliases:
+      opencode: openrouter-test
