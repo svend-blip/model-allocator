@@ -10,6 +10,7 @@ from typing import Sequence
 
 from model_allocator.resolver import ResolutionError, Resolver
 from model_allocator.validator import Validator
+from model_allocator import config_writer
 from model_allocator.adapters import claude_code
 from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import opencode
@@ -385,6 +386,58 @@ def cmd_render_config(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def cmd_config_show(args: argparse.Namespace) -> int:
+    raw = config_writer.load_raw(_config_dir(args))
+    print(json.dumps(raw, indent=2, default=str))
+    return EXIT_OK
+
+
+def _parse_json_arg(raw: str) -> dict:
+    try:
+        value = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise config_writer.ConfigWriteError(f"invalid --json payload: {exc}")
+    if not isinstance(value, dict):
+        raise config_writer.ConfigWriteError("--json payload must be a JSON object")
+    return value
+
+
+def _config_write(args: argparse.Namespace, action) -> int:
+    try:
+        action()
+    except config_writer.ConfigWriteError as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return EXIT_ERROR
+    print(json.dumps({"ok": True, "name": args.name}))
+    return EXIT_OK
+
+
+def cmd_config_set_alias(args: argparse.Namespace) -> int:
+    try:
+        definition = _parse_json_arg(args.json)
+    except config_writer.ConfigWriteError as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return EXIT_ERROR
+    return _config_write(args, lambda: config_writer.set_alias(_config_dir(args), args.name, definition))
+
+
+def cmd_config_delete_alias(args: argparse.Namespace) -> int:
+    return _config_write(args, lambda: config_writer.delete_alias(_config_dir(args), args.name))
+
+
+def cmd_config_set_role(args: argparse.Namespace) -> int:
+    try:
+        definition = _parse_json_arg(args.json)
+    except config_writer.ConfigWriteError as exc:
+        print(json.dumps({"error": str(exc)}), file=sys.stderr)
+        return EXIT_ERROR
+    return _config_write(args, lambda: config_writer.set_role(_config_dir(args), args.name, definition))
+
+
+def cmd_config_delete_role(args: argparse.Namespace) -> int:
+    return _config_write(args, lambda: config_writer.delete_role(_config_dir(args), args.name))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="model-allocator",
@@ -458,6 +511,30 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional path to write opencode.json atomically (merges with existing file)",
     )
     p_render.set_defaults(func=cmd_render_config)
+
+    p_config = sub.add_parser("config", help="Read/write allocator config (aliases, roles)")
+    config_sub = p_config.add_subparsers(dest="config_command", required=True)
+
+    c_show = config_sub.add_parser("show", help="Print full config (aliases, roles, profiles) as JSON")
+    c_show.set_defaults(func=cmd_config_show)
+
+    c_set_alias = config_sub.add_parser("set-alias", help="Create/update an alias")
+    c_set_alias.add_argument("--name", required=True, help="Alias name")
+    c_set_alias.add_argument("--json", required=True, help="Alias definition as a JSON object")
+    c_set_alias.set_defaults(func=cmd_config_set_alias)
+
+    c_del_alias = config_sub.add_parser("delete-alias", help="Delete an alias")
+    c_del_alias.add_argument("--name", required=True, help="Alias name")
+    c_del_alias.set_defaults(func=cmd_config_delete_alias)
+
+    c_set_role = config_sub.add_parser("set-role", help="Create/update a role")
+    c_set_role.add_argument("--name", required=True, help="Role name")
+    c_set_role.add_argument("--json", required=True, help="Role definition as a JSON object")
+    c_set_role.set_defaults(func=cmd_config_set_role)
+
+    c_del_role = config_sub.add_parser("delete-role", help="Delete a role")
+    c_del_role.add_argument("--name", required=True, help="Role name")
+    c_del_role.set_defaults(func=cmd_config_delete_role)
 
     return parser
 
