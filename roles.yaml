@@ -1,6 +1,7 @@
 roles:
   imple01:
-    default_alias: imple-fast
+    default_alias: imple01-local
+    config_dir: imple01
     client_aliases:
-      opencode: imple-fast
+      opencode: imple01-local
       claude-code: imple-fast

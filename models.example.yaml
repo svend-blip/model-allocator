@@ -8,6 +8,15 @@ models:
       opencode: true
       claude-code: true
 
+  imple01-local:
+    runtime_profile: local_ollama_cuda0
+    real_model: qwen3-coder:30b-256k
+    context: 131072
+    lifecycle_policy: stop_after_step
+    clients:
+      opencode: true
+      claude-code: false
+
   review-cloud:
     runtime_profile: cloud_minimax
     real_model: minimax-m3

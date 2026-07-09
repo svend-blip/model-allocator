@@ -1,4 +1,4 @@
-"""Unit tests for Model Allocator V1A."""
+"""Unit tests for Model Allocator V1A/V1B."""
 
 from __future__ import annotations
 
@@ -11,6 +11,8 @@ from unittest.mock import patch
 
 from model_allocator import cli, config_loader, resolver, validator
 from model_allocator.adapters import ollama as ollama_adapter
+from model_allocator.adapters import opencode
+from model_allocator.renderer import render_tmux_shell_string
 
 
 SAMPLE_CONFIG = {
@@ -21,6 +23,13 @@ SAMPLE_CONFIG = {
             "context": 131072,
             "lifecycle_policy": "persistent",
             "clients": {"opencode": True, "claude-code": True},
+        },
+        "imple01-local": {
+            "runtime_profile": "local_ollama_cuda0",
+            "real_model": "qwen3-coder:30b-256k",
+            "context": 131072,
+            "lifecycle_policy": "stop_after_step",
+            "clients": {"opencode": True, "claude-code": False},
         },
         "review-cloud": {
             "runtime_profile": "cloud_minimax",
@@ -61,8 +70,9 @@ SAMPLE_CONFIG = {
     },
     "roles": {
         "imple01": {
-            "default_alias": "imple-fast",
-            "client_aliases": {"opencode": "imple-fast", "claude-code": "imple-fast"},
+            "default_alias": "imple01-local",
+            "config_dir": "imple01",
+            "client_aliases": {"opencode": "imple01-local", "claude-code": "imple-fast"},
         },
     },
 }
@@ -105,10 +115,17 @@ class TestResolver(unittest.TestCase):
         self.assertEqual(result["lifecycle_policy"], "persistent")
         self.assertTrue(result["clients"]["opencode"])
 
+    def test_resolve_imple01_local(self):
+        result = self.r.resolve_alias("imple01-local")
+        self.assertEqual(result["backend"], "ollama")
+        self.assertEqual(result["real_model"], "qwen3-coder:30b-256k")
+        self.assertEqual(result["lifecycle_policy"], "stop_after_step")
+
     def test_resolve_role_client(self):
         result = self.r.resolve_role_client("imple01", "opencode")
-        self.assertEqual(result["alias"], "imple-fast")
+        self.assertEqual(result["alias"], "imple01-local")
         self.assertEqual(result["backend"], "ollama")
+        self.assertEqual(result.get("config_dir"), "imple01")
 
     def test_resolve_missing_alias(self):
         with self.assertRaises(resolver.ResolutionError):
@@ -135,6 +152,50 @@ class TestOllamaAdapter(unittest.TestCase):
             status = adapter.runtime_status()
             self.assertTrue(status["running"])
             self.assertIn("x", status["models"])
+
+    def test_start_model_posts_generate(self):
+        adapter = ollama_adapter.OllamaAdapter(api_base="http://127.0.0.1:11434", real_model="m", context=4096)
+        with patch.object(adapter, "_request", return_value={}) as mock_request:
+            result = adapter.start_model()
+            self.assertTrue(result["started"])
+            call_args = mock_request.call_args
+            self.assertEqual(call_args[0][0], "/api/generate")
+            self.assertEqual(call_args[1]["method"], "POST")
+
+    def test_stop_model_handles_unloaded(self):
+        adapter = ollama_adapter.OllamaAdapter(api_base="http://127.0.0.1:11434", real_model="m")
+        fake_result = type("R", (), {"returncode": 1, "stderr": "model not loaded"})()
+        with patch("subprocess.run", return_value=fake_result):
+            result = adapter.stop_model()
+            self.assertTrue(result["stopped"])
+
+    def test_stop_model_does_not_hang(self):
+        adapter = ollama_adapter.OllamaAdapter(api_base="http://127.0.0.1:11434", real_model="m")
+        with patch("subprocess.run", side_effect=Exception("timeout")):
+            result = adapter.stop_model(timeout=1)
+            self.assertFalse(result["stopped"])
+            self.assertIn("timeout", result["error"].lower())
+
+
+class TestOpenCodeAdapter(unittest.TestCase):
+    def test_build_opencode_command(self):
+        resolved = {
+            "real_model": "qwen3-coder:30b-256k",
+            "backend": "ollama",
+        }
+        cmd = opencode.build_opencode_command(resolved, "imple01")
+        self.assertEqual(cmd["argv"], ["opencode", "--model", "ollama/qwen3-coder:30b-256k"])
+        self.assertEqual(cmd["env"]["OPENCODE_CONFIG_DIR"], "$HOME/.config/opencode-roles/imple01")
+        self.assertEqual(cmd["env"]["OPENCODE_CONFIG"], "$HOME/.config/opencode-roles/imple01/opencode.json")
+
+    def test_render_preserves_dollar_variables(self):
+        cmd = {
+            "env": {"OPENCODE_CONFIG_DIR": "$HOME/.config/opencode-roles/imple01"},
+            "argv": ["opencode", "--model", "ollama/qwen3-coder:30b-256k"],
+        }
+        rendered = render_tmux_shell_string(cmd)
+        self.assertIn('OPENCODE_CONFIG_DIR="$HOME/.config/opencode-roles/imple01"', rendered)
+        self.assertIn("opencode --model ollama/qwen3-coder:30b-256k", rendered)
 
 
 class TestValidator(unittest.TestCase):
@@ -187,6 +248,14 @@ class TestCli(unittest.TestCase):
             "    clients:\n"
             "      opencode: true\n"
             "      claude-code: true\n"
+            "  imple01-local:\n"
+            "    runtime_profile: local_ollama_cuda0\n"
+            "    real_model: qwen3-coder:30b-256k\n"
+            "    context: 131072\n"
+            "    lifecycle_policy: stop_after_step\n"
+            "    clients:\n"
+            "      opencode: true\n"
+            "      claude-code: false\n"
         )
         (path / "runtime_profiles.yaml").write_text(
             "runtime_profiles:\n"
@@ -199,9 +268,10 @@ class TestCli(unittest.TestCase):
         (path / "roles.yaml").write_text(
             "roles:\n"
             "  imple01:\n"
-            "    default_alias: imple-fast\n"
+            "    default_alias: imple01-local\n"
+            "    config_dir: imple01\n"
             "    client_aliases:\n"
-            "      opencode: imple-fast\n"
+            "      opencode: imple01-local\n"
         )
 
     def test_resolve_command(self):
@@ -210,7 +280,7 @@ class TestCli(unittest.TestCase):
 
     def test_validate_command(self):
         code = cli.main(
-            ["--config-dir", str(self.cfg_dir), "validate", "--alias", "imple-fast", "--client", "opencode"]
+            ["--config-dir", str(self.cfg_dir), "validate", "--alias", "imple01-local", "--client", "opencode"]
         )
         self.assertIn(code, (cli.EXIT_OK, cli.EXIT_WARNING))
 
@@ -219,8 +289,20 @@ class TestCli(unittest.TestCase):
         self.assertIn(code, (cli.EXIT_OK,))
 
     def test_status_command_does_not_crash(self):
-        code = cli.main(["--config-dir", str(self.cfg_dir), "status", "--alias", "imple-fast"])
+        code = cli.main(["--config-dir", str(self.cfg_dir), "status", "--alias", "imple01-local"])
         self.assertIn(code, (cli.EXIT_OK, cli.EXIT_WARNING))
+
+    def test_run_command_renders_shell_string(self):
+        code = cli.main(["--config-dir", str(self.cfg_dir), "run", "--role", "imple01", "--client", "opencode"])
+        self.assertEqual(code, cli.EXIT_OK)
+
+    def test_start_command_does_not_crash(self):
+        code = cli.main(["--config-dir", str(self.cfg_dir), "start", "--alias", "imple01-local"])
+        self.assertIn(code, (cli.EXIT_OK, cli.EXIT_WARNING))
+
+    def test_stop_command_for_missing_alias_returns_error(self):
+        code = cli.main(["--config-dir", str(self.cfg_dir), "stop", "--alias", "missing"])
+        self.assertEqual(code, cli.EXIT_ERROR)
 
 
 if __name__ == "__main__":

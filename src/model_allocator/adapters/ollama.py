@@ -1,9 +1,10 @@
-"""Local Ollama backend adapter (V1A — read-only)."""
+"""Local Ollama backend adapter (V1A/V1B)."""
 
 from __future__ import annotations
 
 import json
 import os
+import subprocess
 import urllib.request
 from typing import Any
 
@@ -18,14 +19,20 @@ class OllamaAdapter:
         self.real_model = real_model
         self.context = context
 
-    def _request(self, path: str, method: str = "GET", data: bytes | None = None) -> Any:
+    def _request(
+        self,
+        path: str,
+        method: str = "GET",
+        data: bytes | None = None,
+        timeout: int = 5,
+    ) -> Any:
         if not self.api_base:
             raise OllamaAdapterError("OLLAMA_BASE_URL not configured")
         url = f"{self.api_base}{path}"
         req = urllib.request.Request(url, method=method, data=data)
         req.add_header("Content-Type", "application/json")
         try:
-            with urllib.request.urlopen(req, timeout=5) as resp:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
                 return json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as exc:
             raise OllamaAdapterError(f"Ollama HTTP {exc.code}: {exc.reason}")
@@ -65,6 +72,54 @@ class OllamaAdapter:
             "models": running_models,
             "error": None,
         }
+
+    def start_model(self) -> dict:
+        """Warm up the Ollama model via the generate API.
+
+        Uses a minimal prompt and keep_alive so the runtime loads the model
+        into memory without performing useful generation.
+        """
+        if not self.api_base:
+            return {"started": False, "error": "OLLAMA_BASE_URL not configured"}
+        payload = {
+            "model": self.real_model,
+            "prompt": " ",
+            "stream": False,
+            "keep_alive": "5m",
+        }
+        if self.context:
+            payload["options"] = {"num_ctx": self.context}
+        data = json.dumps(payload).encode("utf-8")
+        try:
+            self._request("/api/generate", method="POST", data=data, timeout=60)
+            return {"started": True, "error": None}
+        except Exception as exc:
+            return {"started": False, "error": f"Ollama start failed: {exc}"}
+
+    def stop_model(self, timeout: int = 30) -> dict:
+        """Stop the Ollama model via the `ollama` CLI with a timeout.
+
+        Returns success if the model was stopped or was already unloaded.
+        """
+        if not self.real_model:
+            return {"stopped": True, "error": None}
+        try:
+            result = subprocess.run(
+                ["ollama", "stop", self.real_model],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+            if result.returncode == 0:
+                return {"stopped": True, "error": None}
+            stderr = (result.stderr or "").lower()
+            if "not loaded" in stderr or "not found" in stderr:
+                return {"stopped": True, "error": None}
+            return {"stopped": False, "error": result.stderr.strip() or result.stdout.strip()}
+        except subprocess.TimeoutExpired:
+            return {"stopped": False, "error": f"ollama stop timed out after {timeout}s"}
+        except Exception as exc:
+            return {"stopped": False, "error": str(exc)}
 
     @staticmethod
     def api_base_from_profile(profile: dict) -> str:

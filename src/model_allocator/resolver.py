@@ -61,7 +61,11 @@ class Resolver:
             alias_name = role.get("default_alias")
         if not alias_name:
             raise ResolutionError(f"No alias configured for role '{role_key}' and client '{client}'")
-        return self.resolve_alias(alias_name)
+        resolved = self.resolve_alias(alias_name)
+        resolved["role_key"] = role_key
+        if "config_dir" in role:
+            resolved["config_dir"] = role["config_dir"]
+        return resolved
 
     def list_aliases(self) -> list[str]:
         return list(self.config.get("models", {}).keys())
