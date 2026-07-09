@@ -71,12 +71,16 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
     backend = resolved.get("backend")
     provider = resolved.get("provider", "")
 
+    # Top-level model field is required by the OpenCode TUI for model selection.
+    model_field = _model_arg(resolved)
+
     if backend == "llama_cpp":
         provider_name = resolved.get("opencode_provider_name") or provider or "llama-local"
         model_id = resolved.get("opencode_model_id") or resolved.get("real_model") or "model"
         host = resolved.get("host", "127.0.0.1")
         port = resolved.get("port", resolved.get("default_port", 8080))
         return {
+            "model": model_field,
             "provider": {
                 provider_name: {
                     "npm": "@ai-sdk/openai-compatible",
@@ -100,6 +104,7 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
             api_base = os.environ.get(api_base_env, "") or api_base
         base_url = f"{api_base.rstrip('/')}/v1" if api_base else ""
         return {
+            "model": model_field,
             "provider": {
                 provider_name: {
                     "npm": "@ai-sdk/openai-compatible",
@@ -120,16 +125,19 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
         if api_base_env:
             api_base = os.environ.get(api_base_env, "") or api_base
         model_id = resolved.get("real_model") or "model"
+        model_entry: dict[str, Any] = {}
+        context = resolved.get("context")
+        if context:
+            model_entry["limit"] = {
+                "context": int(context),
+                "output": min(int(context), 65536),
+            }
         return {
+            "model": model_field,
             "provider": {
                 "ollama": {
-                    "npm": "@ai-sdk/ollama",
-                    "name": "ollama",
-                    "options": {"baseURL": f"{api_base.rstrip('/')}/v1"},
                     "models": {
-                        model_id: {
-                            "name": resolved.get("display_name") or model_id,
-                        },
+                        model_id: model_entry,
                     },
                 },
             },

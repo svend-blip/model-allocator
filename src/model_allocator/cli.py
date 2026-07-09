@@ -318,6 +318,37 @@ def cmd_env(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _atomic_write_json(path: Path, data: dict) -> None:
+    """Write JSON atomically using a temp file + rename in the same directory."""
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    tmp_path.write_text(
+        json.dumps(data, indent=2, default=str) + "\n",
+        encoding="utf-8",
+    )
+    tmp_path.replace(path)
+
+
+def _merge_opencode_config(existing: dict, rendered: dict, provider_key: str) -> dict:
+    """Merge rendered config into existing opencode.json.
+
+    Preserves existing top-level keys (permission, mcp, $schema, other providers,
+    etc.) while setting/updating the top-level ``model`` field and the provider
+    block for the role's backend.
+    """
+    merged = dict(existing)
+    if "model" in rendered:
+        merged["model"] = rendered["model"]
+
+    rendered_provider = rendered.get("provider", {})
+    if rendered_provider:
+        merged.setdefault("provider", {})
+        merged["provider"] = dict(merged["provider"])
+        for provider_name, provider_config in rendered_provider.items():
+            merged["provider"][provider_name] = provider_config
+
+    return merged
+
+
 def cmd_render_config(args: argparse.Namespace) -> int:
     """Emit opencode.json content for a role/client."""
     resolver = Resolver(config_dir=_config_dir(args))
@@ -332,6 +363,24 @@ def cmd_render_config(args: argparse.Namespace) -> int:
         return EXIT_ERROR
 
     config = opencode.build_opencode_config(resolved)
+
+    if args.output:
+        output_path = Path(args.output)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        provider_key = resolved.get("opencode_provider_name") or resolved.get("provider", "")
+
+        if output_path.exists():
+            try:
+                existing = json.loads(output_path.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as exc:
+                print(f"ERROR: existing opencode.json is not valid JSON: {exc}", file=sys.stderr)
+                return EXIT_ERROR
+            config = _merge_opencode_config(existing, config, provider_key)
+
+        _atomic_write_json(output_path, config)
+        print(f"Config written to {output_path}")
+        return EXIT_OK
+
     print(json.dumps(config, indent=2, default=str))
     return EXIT_OK
 
@@ -402,6 +451,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_render = sub.add_parser("render-config", help="Emit opencode.json content for a role/client")
     p_render.add_argument("--role", required=True, help="Role key")
     p_render.add_argument("--client", required=True, help="Client key (opencode)")
+    p_render.add_argument(
+        "--output",
+        type=str,
+        default=None,
+        help="Optional path to write opencode.json atomically (merges with existing file)",
+    )
     p_render.set_defaults(func=cmd_render_config)
 
     return parser

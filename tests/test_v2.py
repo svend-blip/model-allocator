@@ -183,9 +183,11 @@ class TestOpenCodeAdapter(unittest.TestCase):
         self.assertEqual(cmd["argv"][-1], "llama-turbo/qwen36-35b-turbo262k")
 
     def test_render_config_ollama(self):
-        resolved = {"backend": "ollama", "real_model": "qwen", "default_api_base": "http://127.0.0.1:11434"}
+        resolved = {"backend": "ollama", "real_model": "qwen", "context": 131072, "default_api_base": "http://127.0.0.1:11434"}
         cfg = opencode.build_opencode_config(resolved)
-        self.assertEqual(cfg["provider"]["ollama"]["options"]["baseURL"], "http://127.0.0.1:11434/v1")
+        self.assertEqual(cfg["model"], "ollama/qwen")
+        self.assertIn("qwen", cfg["provider"]["ollama"]["models"])
+        self.assertEqual(cfg["provider"]["ollama"]["models"]["qwen"]["limit"]["context"], 131072)
 
     def test_render_config_llama_cpp(self):
         resolved = {
@@ -198,6 +200,32 @@ class TestOpenCodeAdapter(unittest.TestCase):
         cfg = opencode.build_opencode_config(resolved)
         self.assertEqual(cfg["provider"]["llama-turbo"]["options"]["baseURL"], "http://127.0.0.1:8080/v1")
         self.assertIn("qwen36-35b-turbo262k", cfg["provider"]["llama-turbo"]["models"])
+
+    def test_render_config_has_top_level_model_ollama(self):
+        resolved = {"backend": "ollama", "real_model": "qwen3-coder:30b-256k", "default_api_base": "http://127.0.0.1:11434"}
+        cfg = opencode.build_opencode_config(resolved)
+        self.assertEqual(cfg["model"], "ollama/qwen3-coder:30b-256k")
+
+    def test_render_config_has_top_level_model_openrouter(self):
+        resolved = {
+            "backend": "openai_compatible",
+            "provider": "openrouter",
+            "real_model": "qwen3-30b-a3b",
+            "default_api_base": "https://openrouter.ai/api",
+        }
+        cfg = opencode.build_opencode_config(resolved)
+        self.assertEqual(cfg["model"], "openrouter/qwen3-30b-a3b")
+
+    def test_render_config_has_top_level_model_llama_cpp(self):
+        resolved = {
+            "backend": "llama_cpp",
+            "provider": "llama-turbo",
+            "real_model": "/models/model.gguf",
+            "opencode_model_id": "qwen36-35b-turbo262k",
+            "port": 8080,
+        }
+        cfg = opencode.build_opencode_config(resolved)
+        self.assertEqual(cfg["model"], "llama-turbo/qwen36-35b-turbo262k")
 
 
 class TestOpenAICompatibleAdapter(unittest.TestCase):
@@ -376,6 +404,57 @@ class TestCliV2(unittest.TestCase):
     def test_render_config(self):
         code = cli.main(["--config-dir", str(self.cfg_dir), "render-config", "--role", "openrouter-test", "--client", "opencode"])
         self.assertEqual(code, cli.EXIT_OK)
+
+    @patch("model_allocator.adapters.opencode.shutil.which", side_effect=_fake_which)
+    def test_render_config_output_fresh_path(self, _mock):
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "opencode.json"
+            code = cli.main([
+                "--config-dir", str(self.cfg_dir),
+                "render-config",
+                "--role", "openrouter-test",
+                "--client", "opencode",
+                "--output", str(output_path),
+            ])
+            self.assertEqual(code, cli.EXIT_OK)
+            self.assertTrue(output_path.exists())
+            data = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(data["model"], "openrouter/qwen3-30b-a3b")
+            self.assertIn("provider", data)
+
+    @patch("model_allocator.adapters.opencode.shutil.which", side_effect=_fake_which)
+    def test_render_config_output_merges_existing(self, _mock):
+        with tempfile.TemporaryDirectory() as tmp:
+            output_path = Path(tmp) / "opencode.json"
+            existing = {
+                "$schema": "https://example.com/schema.json",
+                "permission": {"allow": ["read", "write"]},
+                "mcp": {"servers": {"test": {"command": "test"}}},
+                "provider": {
+                    "minimax": {
+                        "npm": "@ai-sdk/openai-compatible",
+                        "name": "minimax",
+                        "options": {"baseURL": "https://minimax.example.com/v1"},
+                        "models": {"minimax-m3": {"name": "minimax-m3"}},
+                    },
+                },
+            }
+            output_path.write_text(json.dumps(existing, indent=2), encoding="utf-8")
+            code = cli.main([
+                "--config-dir", str(self.cfg_dir),
+                "render-config",
+                "--role", "openrouter-test",
+                "--client", "opencode",
+                "--output", str(output_path),
+            ])
+            self.assertEqual(code, cli.EXIT_OK)
+            data = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(data["$schema"], existing["$schema"])
+            self.assertEqual(data["permission"], existing["permission"])
+            self.assertEqual(data["mcp"], existing["mcp"])
+            self.assertIn("minimax", data["provider"])
+            self.assertEqual(data["model"], "openrouter/qwen3-30b-a3b")
+            self.assertIn("openrouter", data["provider"])
 
     def test_unload_missing_alias_is_error(self):
         code = cli.main(["--config-dir", str(self.cfg_dir), "unload", "--alias", "missing"])
