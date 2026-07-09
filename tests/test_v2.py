@@ -382,5 +382,57 @@ class TestCliV2(unittest.TestCase):
         self.assertEqual(code, cli.EXIT_ERROR)
 
 
+class TestResolverPreservesAliasFields(unittest.TestCase):
+    def test_llama_alias_fields_survive_resolver_and_appear_in_argv(self):
+        """Regression test: resolver must preserve alias fields for adapters."""
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Path(tmp)
+            (cfg / "models.yaml").write_text(
+                "models:\n"
+                "  svend3060-llama-test:\n"
+                "    runtime_profile: local_llamacpp\n"
+                "    model_path: /Qwen3.6-35B-A3B-MXFP4_MOE.gguf\n"
+                "    context: 262144\n"
+                "    port: 8081\n"
+                "    n_cpu_moe: 26\n"
+                "    cache_type_k: turbo4\n"
+                "    cache_type_v: turbo3\n"
+                "    flash_attn: \"on\"\n"
+                "    reasoning: \"off\"\n"
+                "    no_mmap: true\n"
+                "    clients:\n"
+                "      opencode: true\n"
+            )
+            (cfg / "runtime_profiles.yaml").write_text(
+                "runtime_profiles:\n"
+                "  local_llamacpp:\n"
+                "    backend: llama_cpp\n"
+                "    server_bin_env: LLAMA_SERVER_BIN\n"
+            )
+            (cfg / "roles.yaml").write_text("roles:\n")
+
+            resolver = Resolver(config_dir=str(cfg))
+            resolved = resolver.resolve_alias("svend3060-llama-test")
+
+            # Fields must survive the resolver.
+            self.assertEqual(resolved["port"], 8081)
+            self.assertEqual(resolved["n_cpu_moe"], 26)
+            self.assertEqual(resolved["cache_type_k"], "turbo4")
+            self.assertEqual(resolved["flash_attn"], "on")
+
+            adapter = llama_cpp_adapter.LlamaCppAdapter(resolved)
+            with patch.object(adapter, "server_bin", return_value="/bin/llama-server"):
+                with patch.object(adapter, "model_path", return_value="/Qwen3.6-35B-A3B-MXFP4_MOE.gguf"):
+                    argv = adapter._build_argv()
+
+            self.assertIn("8081", argv)
+            self.assertIn("--n-cpu-moe", argv)
+            self.assertIn("26", argv)
+            self.assertIn("--cache-type-k", argv)
+            self.assertIn("turbo4", argv)
+            self.assertIn("--flash-attn", argv)
+            self.assertIn("on", argv)
+
+
 if __name__ == "__main__":
     unittest.main()

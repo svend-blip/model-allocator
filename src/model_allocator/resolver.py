@@ -42,9 +42,12 @@ class Resolver:
             "default_api_base": profile.get("default_api_base"),
             "gpu": profile.get("gpu"),
         }
-        for field in ("real_model", "context", "lifecycle_policy", "clients", "model_path", "gpu_layers"):
-            if field in alias:
-                merged[field] = alias[field]
+        # Preserve every field declared on the alias. Alias fields override
+        # matching profile fields, which is why profile backfill happens last.
+        reserved = {"alias", "runtime_profile"}
+        for key, value in alias.items():
+            if key not in reserved:
+                merged[key] = value
         # Merge any remaining backend-specific profile fields that are not already set.
         for key, value in profile.items():
             if key not in merged:
