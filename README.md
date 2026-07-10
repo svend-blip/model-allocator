@@ -5,8 +5,9 @@
 > validated, and resolved* across local Ollama, llama.cpp (TurboQuant), cloud
 > OpenAI-compatible APIs, and Minimax.
 
-Status: **V1A → V3B, fully built and live-validated.** 55 unit tests. All
-adapters validated against real backends. Wired into the Father WebUI.
+Status: **V1A → V4, fully built and live-validated.** 69 tests. All
+adapters validated against real backends. Wired into the Father WebUI,
+including a full config dashboard (alias/role CRUD).
 
 ---
 
@@ -71,6 +72,11 @@ model-allocator run      --role <role> --client <client>
 model-allocator env      --role <role> --client claude-code
 model-allocator render-config --role <role> --client opencode [--output <path>]
 model-allocator preflight --role <role> --client <client>
+model-allocator config show
+model-allocator config set-alias    --name <alias> --json '<definition>'
+model-allocator config delete-alias --name <alias>
+model-allocator config set-role     --name <role>  --json '<definition>'
+model-allocator config delete-role  --name <role>
 ```
 
 Run via `python3 -m model_allocator <command>` (dev) or the `scripts/model-allocator`
@@ -89,6 +95,12 @@ wrapper (installed/PATH, used by bridgeV002 subprocess calls).
   is the only reliable way to set the model.
 - **`stop` / `start`** have internal timeouts and never hang (the
   `dispatch.py` post-dispatch hang is not inherited).
+- **`config`** (V4) is the validated write layer for `models.yaml` /
+  `roles.yaml`: `show` prints the full config (aliases, roles, profiles) as
+  JSON; `set-alias`/`set-role` create or update an entry from a JSON
+  definition (validated before write, atomic temp + rename); the delete
+  subcommands remove entries. This is the layer the Father config dashboard
+  writes through — the YAML files stay the single source of truth.
 
 ---
 
@@ -194,11 +206,17 @@ override). Resolution priority: **step > role > system default**.
   existing `unload_ollama_model()`.
 - `routers/bridge.py` — proxy endpoints: `GET /allocator/aliases`,
   `POST /allocator/{validate,status,start,stop}` (shell out, 30/30/200/60s
-  timeouts, 502 on failure).
+  timeouts, 502 on failure); config CRUD: `GET /allocator/config`,
+  `POST /allocator/config/{alias,role}`,
+  `DELETE /allocator/config/{alias,role}/{name}` (V4 — shell out to the
+  `config` subcommands, hardened against non-dict error JSON and non-string
+  names).
 - WebUI (`dpmtf-app.js`) — `model_source` dropdown + alias picker + Validate
   button in Roles/Steps editors (V3A); runtime status card + Start/Stop/
   Refresh + persistent last-validation (localStorage) on allocator-managed
-  role cards (V3B).
+  role cards (V3B); allocator config dashboard — alias/role lists, profile
+  overview, alias + role detail forms with create/update/delete and runtime
+  status controls (V4).
 
 ### The OpenCode `--model` bug (closed)
 
@@ -222,7 +240,7 @@ pip install -e .                      # pyyaml is the only dependency
 python3 -m model_allocator --help
 python3 -m model_allocator list --client opencode
 python3 -m model_allocator validate --alias imple01-local --client opencode
-python3 -m unittest discover tests/   # 55 tests
+python3 -m pytest tests/              # 69 tests (unittest + pytest style)
 ```
 
 For a local TurboQuant llama.cpp setup:
@@ -262,7 +280,9 @@ model-allocator/
   pyproject.toml                     (pyyaml dep; entry point model-allocator)
   scripts/model-allocator            (PATH wrapper)
   src/model_allocator/
-    cli.py                           (11 commands)
+    cli.py                           (12 commands incl. the config subcommand group)
+    config_loader.py                 (YAML config loading + merge)
+    config_writer.py                 (validated safe write for aliases/roles; atomic temp + rename)
     resolver.py                      (alias → backend/model/flags; generic field merge)
     validator.py                     (§10.1 checks + §10.2 output)
     renderer.py                      (tmux-safe shell string)
@@ -275,6 +295,8 @@ model-allocator/
   tests/
     test_v1a.py                      (V1A core: resolve/validate/list/status + Ollama)
     test_v2.py                       (V2/V2.1/V2.2: adapters + render-config merge + resolver field-preservation)
+    test_config_writer.py            (V4: validated write layer)
+    test_config_cli.py               (V4: config subcommands)
 ```
 
 ---
@@ -290,7 +312,8 @@ model-allocator/
 | V2.2 | Model-specific opencode.json (allocator roles): `render-config --output` + start_coding integration | `8b0451e` + Father `0b687a6` |
 | V2.3 | Model-specific opencode.json (direct roles): `ensure_opencode_model_field` in bridge_lib | Father `74a1179` |
 | V3A | WebUI core: model_source dropdown + alias picker + Validate button + `/allocator/{aliases,validate}` endpoints | Father `aac539a` |
-| V3B | WebUI status + lifecycle: status cards + Start/Stop/Refresh + localStorage + `/allocator/{status,start,stop}` | Father (this slice) |
+| V3B | WebUI status + lifecycle: status cards + Start/Stop/Refresh + localStorage + `/allocator/{status,start,stop}` | Father `1e879c7` |
+| V4 | Config dashboard: `config_writer` write layer + `config` CLI subcommands + Father config CRUD endpoints + WebUI alias/role dashboard | `dbc2c9a` + `2309d66` + Father `9f52840`…`b166dc5` |
 
 ### Live validation
 
