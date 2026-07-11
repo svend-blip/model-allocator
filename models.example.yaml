@@ -62,3 +62,13 @@ models:
     clients:
       opencode: true
       claude-code: false
+
+  # ONYX assistant alias (optional runtime; spec example 'company_knowledge')
+  company-knowledge:
+    runtime_profile: local_onyx
+    real_model: allocator-plain   # persona display name (informational)
+    persona_id: 1                 # ONYX persona/assistant id
+    invoke_timeout: 120
+    lifecycle_policy: cloud_noop
+    clients:
+      headless: true

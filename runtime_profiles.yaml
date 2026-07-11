@@ -27,3 +27,13 @@ runtime_profiles:
     api_key_env: OPENROUTER_API_KEY
     default_api_base: https://openrouter.ai/api
     provider: openrouter
+
+  local_onyx:
+    backend: onyx
+    api_base_env: ONYX_API_BASE
+    default_api_base: http://127.0.0.1:9162
+    api_key_env: ONYX_API_KEY
+    email_env: ONYX_EMAIL
+    password_env: ONYX_ADMIN_PASSWORD
+    provider: onyx
+    capabilities: [invoke]

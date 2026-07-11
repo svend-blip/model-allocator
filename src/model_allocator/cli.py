@@ -16,6 +16,7 @@ from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import opencode
 from model_allocator.adapters import ollama as ollama_adapter
 from model_allocator.adapters import openai_compatible as openai_adapter
+from model_allocator.adapters import onyx as onyx_adapter
 from model_allocator.renderer import render_tmux_shell_string
 
 
@@ -53,6 +54,8 @@ def _get_backend_adapter(resolved: dict):
         )
     if backend == "llama_cpp":
         return llama_cpp_adapter.LlamaCppAdapter(resolved)
+    if backend == "onyx":
+        return onyx_adapter.OnyxAdapter.from_resolved(resolved)
     raise ValueError(f"Unsupported backend: {backend}")
 
 
@@ -438,6 +441,48 @@ def cmd_config_delete_role(args: argparse.Namespace) -> int:
     return _config_write(args, lambda: config_writer.delete_role(_config_dir(args), args.name))
 
 
+def cmd_invoke(args: argparse.Namespace) -> int:
+    """One-shot invocation of an invoke-capable alias (InvokeResult JSON).
+
+    The prompt comes from --prompt or stdin. Capability is declared as
+    data on the runtime profile (capabilities: [invoke]) — providers
+    without it are rejected here, not inside adapters.
+    """
+    resolver = Resolver(config_dir=_config_dir(args))
+    try:
+        resolved = resolver.resolve_alias(args.alias)
+    except ResolutionError as exc:
+        print(json.dumps({"status": "error", "error": str(exc)}))
+        return 1
+    capabilities = resolved.get("capabilities") or []
+    if "invoke" not in capabilities:
+        print(json.dumps({
+            "status": "error",
+            "error": (
+                f"Alias '{args.alias}' (backend "
+                f"'{resolved.get('backend')}') does not declare the "
+                "'invoke' capability"
+            ),
+        }))
+        return 1
+    prompt = args.prompt
+    if prompt is None or prompt == "-":
+        prompt = sys.stdin.read()
+    if not prompt or not prompt.strip():
+        print(json.dumps({"status": "error", "error": "Empty prompt"}))
+        return 1
+    adapter = _get_backend_adapter(resolved)
+    kwargs = {}
+    if getattr(args, "timeout", None):
+        kwargs["timeout"] = args.timeout
+    if getattr(args, "persona", None) is not None:
+        kwargs["persona_id"] = args.persona
+    result = adapter.invoke(prompt, **kwargs)
+    result.setdefault("metadata", {})["alias"] = args.alias
+    print(json.dumps(result, ensure_ascii=False))
+    return 0 if result.get("status") == "ok" else 1
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="model-allocator",
@@ -469,6 +514,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_status = sub.add_parser("status", help="Report backend/runtime status for an alias")
     p_status.add_argument("--alias", required=True, help="Logical alias name")
     p_status.set_defaults(func=cmd_status)
+
+    p_invoke = sub.add_parser("invoke", help="One-shot invocation of an invoke-capable alias (InvokeResult JSON)")
+    p_invoke.add_argument("--alias", required=True, help="Logical alias name")
+    p_invoke.add_argument("--prompt", default=None, help="Prompt text ('-' or omitted = read stdin)")
+    p_invoke.add_argument("--timeout", type=int, default=None, help="Invoke timeout in seconds")
+    p_invoke.add_argument("--persona", type=int, default=None, help="Provider persona/assistant override")
+    p_invoke.set_defaults(func=cmd_invoke)
 
     p_run = sub.add_parser("run", help="Render the tmux-safe shell string for a role/client")
     p_run.add_argument("--role", required=True, help="Role key")

@@ -69,6 +69,8 @@ class Validator:
             self._validate_openai_compatible(resolved, client, result)
         elif backend == "llama_cpp":
             self._validate_llama_cpp(resolved, client, result)
+        elif backend == "onyx":
+            self._validate_onyx(resolved, client, result)
         elif backend is None:
             result["errors"].append("Backend not declared in runtime profile")
             result["validation_status"] = "ERROR"
@@ -92,6 +94,12 @@ class Validator:
                 return
             result["errors"].append(
                 f"Client 'claude-code' is incompatible with backend '{backend}' (provider '{provider}')"
+            )
+            result["validation_status"] = "ERROR"
+            return
+        if backend == "onyx" and client not in ("headless",):
+            result["errors"].append(
+                f"Client '{client}' is not supported for the onyx backend (use 'headless')"
             )
             result["validation_status"] = "ERROR"
             return
@@ -139,6 +147,24 @@ class Validator:
 
         if not credentials["present"] or not reachable["reachable"]:
             result["client_support"][client] = "UNREACHABLE"
+
+    def _validate_onyx(self, resolved: dict, client: str, result: dict) -> None:
+        from model_allocator.adapters import onyx as onyx_adapter
+
+        adapter = onyx_adapter.OnyxAdapter.from_resolved(resolved)
+        status = adapter.status()
+        if not status["reachable"]:
+            result["errors"].append(
+                f"ONYX endpoint unreachable: {status.get('error')}"
+            )
+        if not status["credentials_present"]:
+            result["errors"].append(
+                "ONYX credentials missing (api key or email/password env vars)"
+            )
+        if "invoke" not in (resolved.get("capabilities") or []):
+            result["warnings"].append(
+                "Profile does not declare the 'invoke' capability"
+            )
 
     def _validate_llama_cpp(self, resolved: dict, client: str, result: dict) -> None:
         try:
