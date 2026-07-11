@@ -9,6 +9,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+mcp = ["mcp[cli]>=1.28.1"]
 dev = []
 
 [build-system]

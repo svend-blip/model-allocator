@@ -499,6 +499,17 @@ def cmd_headless(args: argparse.Namespace) -> int:
         return EXIT_ERROR
 
 
+def cmd_mcp_serve(args: argparse.Namespace) -> int:
+    """Serve onyx-mcp tools over MCP streamable-http (optional extra)."""
+    from model_allocator import mcp_server
+
+    try:
+        return mcp_server.serve(args.alias, host=args.host, port=args.port)
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="model-allocator",
@@ -545,6 +556,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_headless.add_argument("--timeout", type=int, default=None, help="Per-invoke timeout in seconds")
     p_headless.add_argument("--persona", type=int, default=None, help="Provider persona/assistant override")
     p_headless.set_defaults(func=cmd_headless)
+
+    p_mcp = sub.add_parser("mcp-serve", help="Serve onyx_answer/onyx_status MCP tools for an invoke-capable alias")
+    p_mcp.add_argument("--alias", default="company-knowledge", help="Invoke-capable alias (default company-knowledge)")
+    p_mcp.add_argument("--host", default="127.0.0.1")
+    p_mcp.add_argument("--port", type=int, default=9164)
+    p_mcp.set_defaults(func=cmd_mcp_serve)
 
     p_run = sub.add_parser("run", help="Render the tmux-safe shell string for a role/client")
     p_run.add_argument("--role", required=True, help="Role key")
