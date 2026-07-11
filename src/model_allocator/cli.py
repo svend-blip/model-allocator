@@ -17,6 +17,7 @@ from model_allocator.adapters import opencode
 from model_allocator.adapters import ollama as ollama_adapter
 from model_allocator.adapters import openai_compatible as openai_adapter
 from model_allocator.adapters import onyx as onyx_adapter
+from model_allocator.adapters import headless as headless_adapter
 from model_allocator.renderer import render_tmux_shell_string
 
 
@@ -156,6 +157,8 @@ def cmd_run(args: argparse.Namespace) -> int:
             command_object = opencode.build_opencode_command(resolved, config_dir)
         elif args.client == "claude-code":
             command_object = claude_code.build_claude_code_command(resolved)
+        elif args.client == "headless":
+            command_object = headless_adapter.build_headless_command(resolved, args.role)
         else:
             print(f"ERROR: run command for client '{args.client}' is not implemented in V2", file=sys.stderr)
             return EXIT_ERROR
@@ -483,6 +486,19 @@ def cmd_invoke(args: argparse.Namespace) -> int:
     return 0 if result.get("status") == "ok" else 1
 
 
+def cmd_headless(args: argparse.Namespace) -> int:
+    """Run the headless client loop (stdin prompts -> invoke -> stdout)."""
+    from model_allocator import headless as headless_runner
+
+    try:
+        return headless_runner.main_from_args(
+            args, lambda: Resolver(config_dir=_config_dir(args))
+        )
+    except ResolutionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="model-allocator",
@@ -521,6 +537,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_invoke.add_argument("--timeout", type=int, default=None, help="Invoke timeout in seconds")
     p_invoke.add_argument("--persona", type=int, default=None, help="Provider persona/assistant override")
     p_invoke.set_defaults(func=cmd_invoke)
+
+    p_headless = sub.add_parser("headless", help="Run the headless client loop in a tmux session (stdin prompts -> invoke)")
+    p_headless.add_argument("--alias", required=True, help="Invoke-capable alias")
+    p_headless.add_argument("--output-dir", default=None, help="Directory for per-invoke InvokeResult JSON files")
+    p_headless.add_argument("--idle-seconds", type=float, default=2.0, help="Idle gap that ends a pasted prompt (default 2.0)")
+    p_headless.add_argument("--timeout", type=int, default=None, help="Per-invoke timeout in seconds")
+    p_headless.add_argument("--persona", type=int, default=None, help="Provider persona/assistant override")
+    p_headless.set_defaults(func=cmd_headless)
 
     p_run = sub.add_parser("run", help="Render the tmux-safe shell string for a role/client")
     p_run.add_argument("--role", required=True, help="Role key")

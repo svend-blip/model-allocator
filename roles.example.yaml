@@ -17,3 +17,12 @@ roles:
     config_dir: openrouter-test
     client_aliases:
       opencode: openrouter-test
+
+  # Knowledge-advisor role backed by an ONYX assistant via the headless
+  # runner. BridgeV002 config for such a role: default_runtime -> the
+  # command from `run --role advisor01 --client headless` (zero bridge
+  # code changes).
+  advisor01:
+    default_alias: company-knowledge
+    client_aliases:
+      headless: company-knowledge
