@@ -1,0 +1,32 @@
+# onyx-mcp — MCP tools (onyx_answer/onyx_status) for bridgeV002 roles.
+#
+# USER-level systemd unit (no sudo needed). Install:
+#   cp deploy/onyx/onyx-mcp.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now onyx-mcp
+#
+# Survives reboot when lingering is enabled for the user
+# (`loginctl show-user $USER --property=Linger` must say yes;
+# enabled on this machine 2026-07-11).
+#
+# Credentials: %h/model-allocator/.env.onyx (mode 600, gitignored) with
+# ONYX_EMAIL= and ONYX_ADMIN_PASSWORD= (or ONYX_API_KEY= on Business tier).
+#
+# OPTIONAL SERVICE: if the ONYX stack is down, tools return clean error
+# envelopes — nothing else is affected. Stop with
+# `systemctl --user disable --now onyx-mcp`.
+
+[Unit]
+Description=onyx-mcp — ONYX knowledge tools over MCP (model-allocator V5C)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/model-allocator
+EnvironmentFile=%h/model-allocator/.env.onyx
+ExecStart=%h/model-allocator/venv/bin/python -m model_allocator mcp-serve --alias company-knowledge --port 9164
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

@@ -45,6 +45,21 @@ rest of the ecosystem is unaffected (optionality guarantee).
 - `.env` lives in `~/onyx/deployment/docker_compose/.env` (on-machine
   only, never committed; contains postgres password).
 
+## onyx-mcp as a service (installed 2026-07-11)
+
+`onyx-mcp` runs as a USER-level systemd unit (no sudo; survives reboot —
+lingering is enabled for the user):
+
+```bash
+cp deploy/onyx/onyx-mcp.service ~/.config/systemd/user/
+systemctl --user daemon-reload && systemctl --user enable --now onyx-mcp
+systemctl --user status onyx-mcp     # port 9164, credentials via
+                                     # ~/model-allocator/.env.onyx (600)
+```
+
+Stop/remove: `systemctl --user disable --now onyx-mcp` — optional service,
+nothing else depends on it.
+
 ## Upgrade path (deferred by design)
 
 Standard mode (connectors + RAG indexing) = remove the Lite overlay and
