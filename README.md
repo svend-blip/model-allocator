@@ -5,9 +5,12 @@
 > validated, and resolved* across local Ollama, llama.cpp (TurboQuant), cloud
 > OpenAI-compatible APIs, and Minimax.
 
-Status: **V1A → V4, fully built and live-validated.** 69 tests. All
+Status: **V1A → V5, fully built and live-validated.** 95 tests. All
 adapters validated against real backends. Wired into the Father WebUI,
-including a full config dashboard (alias/role CRUD).
+including a full config dashboard (alias/role CRUD). V5 adds ONYX as an
+OPTIONAL invoke-only knowledge runtime + a generic headless client that
+turns any invoke-capable API runtime into a bridgeV002 role with zero
+bridge changes.
 
 ---
 
@@ -43,6 +46,7 @@ Backend adapters  → concrete runtime commands (Ollama, llama.cpp, cloud, …)
 | `ollama` | Local Ollama | warm via `/api/generate` + keep_alive | `ollama stop <model>` | `ollama ps` / API | num_ctx per-request (informational) |
 | `llama_cpp` | llama-server (TurboQuant build) | spawn `llama-server` with full flag set + PID file + free/configured port + `/health` polling | kill PID (timeout) | `/health` + PID alive | `--ctx-size`, `--n-cpu-moe` (MoE) / `--n-gpu-layers` (dense), `--cache-type-k/v`, `--flash-attn`, `--tensor-split`, … |
 | `openai_compatible` | Cloud OpenAI-compatible | validate only | no-op | API reachability | model max context |
+| `onyx` | ONYX assistants (optional) | no-op (docker compose owns lifecycle) | no-op | `/health` + credentials | invoke-only: one-shot chat with citations |
 
 ### Client adapters
 
@@ -50,6 +54,7 @@ Backend adapters  → concrete runtime commands (Ollama, llama.cpp, cloud, …)
 |----------|----------|--------------|
 | `opencode` | `opencode` TUI | `ollama/<model>`, `openrouter/<model>`, bare Minimax id, `<provider>/<model_id>` for llama.cpp |
 | `claude_code` | `claude` TUI | `claude --model <model>` (valid flag on Claude Code, unlike OpenCode) |
+| `headless` | allocator runner loop | any invoke-capable alias — pasted tmux prompt -> invoke() -> answer in pane + InvokeResult JSON file |
 
 ### Client/backend matrix
 
@@ -77,6 +82,9 @@ model-allocator config set-alias    --name <alias> --json '<definition>'
 model-allocator config delete-alias --name <alias>
 model-allocator config set-role     --name <role>  --json '<definition>'
 model-allocator config delete-role  --name <role>
+model-allocator invoke   --alias <alias> [--prompt <p>|-] [--persona N] [--timeout S]
+model-allocator headless --alias <alias> [--output-dir D] [--idle-seconds F]
+model-allocator mcp-serve [--alias <alias>] [--host H] [--port 9164]
 ```
 
 Run via `python3 -m model_allocator <command>` (dev) or the `scripts/model-allocator`
@@ -95,6 +103,21 @@ wrapper (installed/PATH, used by bridgeV002 subprocess calls).
   is the only reliable way to set the model.
 - **`stop` / `start`** have internal timeouts and never hang (the
   `dispatch.py` post-dispatch hang is not inherited).
+- **`invoke`** (V5A) performs a one-shot stateless invocation of an
+  invoke-capable alias and prints the generic **InvokeResult envelope**
+  `{status, provider, text, citations[], error, metadata}` — citations are
+  empty for plain LLM providers and populated by knowledge providers
+  (ONYX). Capability is declared as DATA on the runtime profile
+  (`capabilities: [invoke]`), so partial providers need no interface stubs.
+- **`headless`** (V5B) runs the generic client loop inside a role's tmux
+  session: dispatch pastes a prompt exactly as for TUI clients, the runner
+  batches it (idle-gap framing), calls invoke(), prints the answer to the
+  pane and writes the InvokeResult to `--output-dir`. This is what makes
+  API-only runtimes usable as bridge roles with ZERO bridge changes.
+- **`mcp-serve`** (V5C) exposes `onyx_answer`/`onyx_status` MCP tools on
+  streamable-http (default 127.0.0.1:9164/mcp) so EXISTING roles gain
+  knowledge lookup via a config-block only. Requires the optional `mcp`
+  extra: `pip install -e ".[mcp]"`.
 - **`config`** (V4) is the validated write layer for `models.yaml` /
   `roles.yaml`: `show` prints the full config (aliases, roles, profiles) as
   JSON; `set-alias`/`set-role` create or update an entry from a JSON
