@@ -1,0 +1,12 @@
+# Local override — direct ports, nginx bypassed (template dir is root-owned
+# after an accidental docker-created mount; the stack does not need nginx
+# locally: api_server and web_server are exposed directly).
+services:
+  api_server:
+    ports:
+      - "127.0.0.1:9162:8080"
+  web_server:
+    ports:
+      - "127.0.0.1:9163:3000"
+    environment:
+      - INTERNAL_URL=http://api_server:8080
