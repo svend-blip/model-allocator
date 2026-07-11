@@ -253,6 +253,34 @@ Fix: set a top-level `model` field in `opencode.json` (the only reliable way).
 
 ---
 
+## ONYX runtime (optional, V5)
+
+ONYX (github.com/onyx-dot-app/onyx) is an OPTIONAL knowledge runtime.
+Nothing requires it: only aliases whose profile declares `backend: onyx`
+touch it, and with the stack down those aliases fail cleanly while every
+other alias is untouched (guaranteed by tests).
+
+- Deployment: ONYX **Lite** via docker compose — see `deploy/onyx/README.md`
+  (API http://127.0.0.1:9162, web UI http://127.0.0.1:9163; LLM backend is
+  the local Ollama via its OpenAI-compatible /v1 endpoint — zero cloud cost)
+- Auth: basic login via env names `ONYX_EMAIL`/`ONYX_ADMIN_PASSWORD`
+  (session cookie per invoke); `ONYX_API_KEY` supported where API keys are
+  available (Business tier)
+- Two integration paths, both zero-bridge-change:
+  1. **Runtime path**: a role's alias -> `run --client headless` command in
+     the role's tmux session (see `advisor01` example role)
+  2. **Tools path**: `mcp-serve` + an `onyx-mcp` block in the role's MCP
+     config — existing roles keep their LLM and gain `onyx_answer`
+
+### Dependencies
+
+| Component | Requires |
+|-----------|----------|
+| allocator core | Python 3.10+, `pyyaml` (nothing else) |
+| ONYX runtime (optional) | docker + compose plugin (user-local install OK), ~1 GB RAM (Lite), local Ollama |
+| `mcp-serve` (optional) | `pip install -e ".[mcp]"` (mcp[cli] >= 1.28.1) |
+| dev/tests | `pytest` |
+
 ## Quick start
 
 ```bash
@@ -306,6 +334,9 @@ model-allocator/
     cli.py                           (12 commands incl. the config subcommand group)
     config_loader.py                 (YAML config loading + merge)
     config_writer.py                 (validated safe write for aliases/roles; atomic temp + rename)
+    invoke_result.py                 (V5: generic InvokeResult envelope)
+    headless.py                      (V5B: runner loop — stdin framing, invoke, output files)
+    mcp_server.py                    (V5C: onyx-mcp tools; optional 'mcp' extra)
     resolver.py                      (alias → backend/model/flags; generic field merge)
     validator.py                     (§10.1 checks + §10.2 output)
     renderer.py                      (tmux-safe shell string)
@@ -315,6 +346,8 @@ model-allocator/
       openai_compatible.py           (cloud: validate/reachability)
       opencode.py                    (OpenCode client: run + render-config + provider block)
       claude_code.py                 (Claude Code client: run + env)
+      onyx.py                        (V5A: ONYX backend — auth, one-shot invoke, citations)
+      headless.py                    (V5B: headless client command builder)
   tests/
     test_v1a.py                      (V1A core: resolve/validate/list/status + Ollama)
     test_v2.py                       (V2/V2.1/V2.2: adapters + render-config merge + resolver field-preservation)
@@ -337,6 +370,10 @@ model-allocator/
 | V3A | WebUI core: model_source dropdown + alias picker + Validate button + `/allocator/{aliases,validate}` endpoints | Father `aac539a` |
 | V3B | WebUI status + lifecycle: status cards + Start/Stop/Refresh + localStorage + `/allocator/{status,start,stop}` | Father `1e879c7` |
 | V4 | Config dashboard: `config_writer` write layer + `config` CLI subcommands + Father config CRUD endpoints + WebUI alias/role dashboard | `dbc2c9a` + `2309d66` + Father `9f52840`…`b166dc5` |
+| V5-fase0 | ONYX Lite local deployment (docker compose, basic auth, Ollama /v1 LLM backend, clean persona) | `18dfe20` |
+| V5A | `invoke()` capability + InvokeResult envelope + ONYX backend adapter + capability-as-data | `17bfc58` |
+| V5B | Headless runner client adapter (API runtimes as bridge roles, zero bridge changes) | `74ba425` |
+| V5C | onyx-mcp: `mcp-serve` with onyx_answer/onyx_status tools (optional `mcp` extra) | `8c971a5` |
 
 ### Live validation
 
@@ -359,3 +396,10 @@ model-allocator/
   selection works via the opencode.json `model` field regardless).
 - Optional FastAPI service (scope §16.4) is deferred — the Father-proxy
   approach is used instead.
+- ONYX Lite has no connectors/RAG indexing — `onyx_answer` works, a
+  dedicated `onyx_search` tool awaits the Standard-mode upgrade
+  (deploy/onyx/README.md documents the path). ONYX API keys are
+  Business-tier gated; the adapter therefore defaults to cookie login.
+- The headless runner is a transport, not an agent: roles that must write
+  bridge convention files need that handled via bridge step configuration,
+  not prompt parsing in the runner.
