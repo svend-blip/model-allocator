@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# PATH wrapper for model-allocator (V1B).
+# PATH wrapper for model-allocator.
 # Prefer a project-local venv interpreter; allow override via MODEL_ALLOCATOR_PYTHON.
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -11,6 +11,10 @@ PYTHON="${MODEL_ALLOCATOR_PYTHON:-}"
 
 if [ -z "$PYTHON" ] && [ -x "$PROJECT_DIR/.venv/bin/python3" ]; then
     PYTHON="$PROJECT_DIR/.venv/bin/python3"
+fi
+
+if [ -z "$PYTHON" ] && [ -x "$PROJECT_DIR/venv/bin/python3" ]; then
+    PYTHON="$PROJECT_DIR/venv/bin/python3"
 fi
 
 if [ -z "$PYTHON" ]; then
