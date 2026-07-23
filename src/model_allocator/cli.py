@@ -11,6 +11,7 @@ from typing import Sequence
 from model_allocator.resolver import ResolutionError, Resolver
 from model_allocator.validator import Validator
 from model_allocator import config_writer
+from model_allocator.doctor_cli import cmd_doctor
 from model_allocator.adapters import claude_code
 from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import opencode
@@ -632,6 +633,10 @@ def build_parser() -> argparse.ArgumentParser:
     c_del_role = config_sub.add_parser("delete-role", help="Delete a role")
     c_del_role.add_argument("--name", required=True, help="Role name")
     c_del_role.set_defaults(func=cmd_config_delete_role)
+
+    p_doctor = sub.add_parser("doctor", help="Validate config files for errors and warnings")
+    p_doctor.add_argument("--json", action="store_true", help="Output JSON instead of text")
+    p_doctor.set_defaults(func=cmd_doctor)
 
     return parser
 

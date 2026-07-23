@@ -53,8 +53,8 @@ models:
     ubatch_size: 128
     cache_type_k: turbo4
     cache_type_v: turbo3
-    flash_attn: on
-    reasoning: off
+    flash_attn: "on"
+    reasoning: "off"
     no_mmap: true
     lifecycle_policy: stop_after_step
     clients:
