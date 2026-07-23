@@ -4,7 +4,120 @@ roles:
     config_dir: imple01
     client_aliases:
       opencode: imple01-local
-      claude-code: imple01-claude
+
+  archi01:
+    default_alias: archi-local
+    config_dir: archi01
+    client_aliases:
+      claude-code: archi-local
+
+  archi01cloud:
+    default_alias: archi-local
+    config_dir: archi01cloud
+    client_aliases:
+      claude-code: archi-local
+
+  analyst01_trade:
+    default_alias: archi-local
+    config_dir: analyst01_trade
+    client_aliases:
+      claude-code: archi-local
+
+  sim01_trade:
+    default_alias: archi-local
+    config_dir: sim01_trade
+    client_aliases:
+      claude-code: archi-local
+
+  trend01_trade:
+    default_alias: trend-local
+    config_dir: trend01_trade
+    client_aliases:
+      claude-code: trend-local
+
+  market01_trade:
+    default_alias: coder-96k-local
+    config_dir: market01_trade
+    client_aliases:
+      claude-code: coder-96k-local
+
+  portfolio01_trade:
+    default_alias: coder-96k-local
+    config_dir: portfolio01_trade
+    client_aliases:
+      claude-code: coder-96k-local
+
+  risk01_trade:
+    default_alias: coder-48k-local
+    config_dir: risk01_trade
+    client_aliases:
+      claude-code: coder-48k-local
+
+  score01_trade:
+    default_alias: coder-48k-local
+    config_dir: score01_trade
+    client_aliases:
+      claude-code: coder-48k-local
+
+  learn01_trade:
+    default_alias: learn-local
+    config_dir: learn01_trade
+    client_aliases:
+      claude-code: learn-local
+
+  review01:
+    default_alias: review01-local
+    config_dir: review01
+    client_aliases:
+      opencode: review01-local
+
+  review01cloud:
+    default_alias: review02-local
+    config_dir: review01cloud
+    client_aliases:
+      opencode: review02-local
+
+  review01pay:
+    default_alias: review02-local
+    config_dir: review01pay
+    client_aliases:
+      opencode: review02-local
+
+  review02:
+    default_alias: review02-local
+    config_dir: review02
+    client_aliases:
+      opencode: review02-local
+
+  review01_trade:
+    default_alias: review02-local
+    config_dir: review01_trade
+    client_aliases:
+      opencode: review02-local
+
+  review02cloud:
+    default_alias: review-cloud
+    config_dir: review02cloud
+    client_aliases:
+      opencode: review-cloud
+
+  review02pay:
+    default_alias: review-cloud
+    config_dir: review02pay
+    client_aliases:
+      opencode: review-cloud
+
+  archi01pay:
+    default_alias: archi-pay
+    config_dir: archi01pay
+    client_aliases:
+      claude-code: archi-pay
+
+  imple01pay:
+    default_alias: imple-pay
+    config_dir: imple01pay
+    client_aliases:
+      opencode: imple-pay
 
   claude-test:
     default_alias: imple01-claude
