@@ -74,7 +74,10 @@ def cmd_resolve(args: argparse.Namespace) -> int:
 def cmd_validate(args: argparse.Namespace) -> int:
     validator = Validator(config_dir=_config_dir(args))
     result = validator.validate(args.alias, args.client)
-    print(validator.format_output(result))
+    if getattr(args, "json", False):
+        print(json.dumps(result, indent=2, default=str))
+    else:
+        print(validator.format_output(result))
     if result["validation_status"] == "ERROR":
         return EXIT_ERROR
     if result["validation_status"] == "WARNING":
@@ -531,6 +534,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_validate = sub.add_parser("validate", help="Check whether an alias is usable for a client")
     p_validate.add_argument("--alias", required=True, help="Logical alias name")
     p_validate.add_argument("--client", required=True, help="Client key (e.g. opencode)")
+    p_validate.add_argument("--json", action="store_true", help="Output structured JSON instead of text")
     p_validate.set_defaults(func=cmd_validate)
 
     p_list = sub.add_parser("list", help="List configured aliases")
