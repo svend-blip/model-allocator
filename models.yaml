@@ -69,8 +69,6 @@ models:
     context: 65536
     lifecycle_policy: stop_after_step
     max_output_tokens: 32768
-    claude_extra_args:
-    - --bare
     clients:
       claude-code: true
       opencode: false
@@ -80,8 +78,6 @@ models:
     context: 48384
     lifecycle_policy: stop_after_step
     max_output_tokens: 32768
-    claude_extra_args:
-    - --bare
     clients:
       claude-code: true
   coder-96k-local:
@@ -90,8 +86,6 @@ models:
     context: 96256
     lifecycle_policy: stop_after_step
     max_output_tokens: 32768
-    claude_extra_args:
-    - --bare
     clients:
       claude-code: true
   coder-48k-local:
@@ -100,8 +94,6 @@ models:
     context: 48384
     lifecycle_policy: stop_after_step
     max_output_tokens: 32768
-    claude_extra_args:
-    - --bare
     clients:
       claude-code: true
   learn-local:
@@ -110,8 +102,6 @@ models:
     context: 32768
     lifecycle_policy: stop_after_step
     max_output_tokens: 32768
-    claude_extra_args:
-    - --bare
     clients:
       claude-code: true
   review01-local:
@@ -133,8 +123,6 @@ models:
     real_model: z-ai/glm-5.2
     lifecycle_policy: cloud_noop
     max_output_tokens: 32768
-    claude_extra_args:
-    - --bare
     clients:
       claude-code: true
   imple-pay:
