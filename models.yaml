@@ -68,6 +68,7 @@ models:
     real_model: qwen3.6:35b-a3b-64k
     context: 65536
     lifecycle_policy: stop_after_step
+    max_output_tokens: 32768
     claude_extra_args:
     - --bare
     clients:
@@ -78,6 +79,7 @@ models:
     real_model: qwen3.6-35b-48k
     context: 48384
     lifecycle_policy: stop_after_step
+    max_output_tokens: 32768
     claude_extra_args:
     - --bare
     clients:
@@ -87,6 +89,7 @@ models:
     real_model: qwen3-coder-30b-96k
     context: 96256
     lifecycle_policy: stop_after_step
+    max_output_tokens: 32768
     claude_extra_args:
     - --bare
     clients:
@@ -96,6 +99,7 @@ models:
     real_model: qwen3-coder-30b-48k
     context: 48384
     lifecycle_policy: stop_after_step
+    max_output_tokens: 32768
     claude_extra_args:
     - --bare
     clients:
@@ -105,6 +109,7 @@ models:
     real_model: qwen3.6-27b-32k
     context: 32768
     lifecycle_policy: stop_after_step
+    max_output_tokens: 32768
     claude_extra_args:
     - --bare
     clients:
@@ -127,6 +132,7 @@ models:
     runtime_profile: cloud_openrouter
     real_model: z-ai/glm-5.2
     lifecycle_policy: cloud_noop
+    max_output_tokens: 32768
     claude_extra_args:
     - --bare
     clients:
