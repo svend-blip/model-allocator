@@ -141,6 +141,38 @@ def cmd_status(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+def _refresh_opencode_json(resolved: dict, config_dir: str) -> None:
+    """Auto-refresh opencode.json for an OpenCode role.
+
+    Writes the `model` field and provider block atomically (temp + rename),
+    merging with any existing file. Diagnostics go to stderr — stdout purity
+    must be maintained (Father captures stdout for tmux injection).
+    """
+    import os
+    config_base = os.environ.get(
+        "OPENCODE_ROLES_CONFIG_BASE", "$HOME/.config/opencode-roles"
+    )
+    # Expand $HOME for the allocator's own file write
+    expanded_base = os.path.expandvars(config_base)
+    expanded_base = os.path.expanduser(expanded_base)
+    json_path = os.path.join(expanded_base, config_dir, "opencode.json")
+    config_obj = opencode.build_opencode_config(resolved)
+    if not config_obj:
+        return
+    try:
+        os.makedirs(os.path.dirname(json_path), exist_ok=True)
+        existing = {}
+        if os.path.exists(json_path):
+            existing = json.loads(
+                Path(json_path).read_text(encoding="utf-8")
+            )
+        merged = _merge_opencode_config(existing, config_obj, resolved.get("opencode_provider_name") or resolved.get("provider", ""))
+        _atomic_write_json(Path(json_path), merged)
+        print(f"  Refreshed opencode.json: {json_path}", file=sys.stderr)
+    except Exception as exc:
+        print(f"  WARNING: opencode.json refresh failed: {exc}", file=sys.stderr)
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     """Print the tmux-safe shell string for starting a client against an alias."""
     resolver = Resolver(config_dir=_config_dir(args))
@@ -162,6 +194,10 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         if args.client == "opencode":
             config_dir = resolved.get("config_dir") or args.role
+            # Auto-refresh opencode.json so the TUI uses the correct model.
+            # OpenCode ignores --model on session resumption — the `model`
+            # field in opencode.json is the only reliable channel.
+            _refresh_opencode_json(resolved, config_dir)
             command_object = opencode.build_opencode_command(resolved, config_dir)
         elif args.client == "claude-code":
             command_object = claude_code.build_claude_code_command(resolved)

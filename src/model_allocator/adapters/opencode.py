@@ -52,17 +52,22 @@ def build_opencode_command(resolved: dict, config_dir: str) -> dict[str, Any]:
 
     Supports Ollama, OpenAI-compatible cloud (OpenRouter, Minimax), and
     llama.cpp backends. Paths are never hardcoded.
+
+    NOTE: The --model flag is NOT included — OpenCode's TUI silently ignores
+    it on session resumption (live incident: Kimi/OpenRouter instead of
+    qwen3-coder/Ollama). The model is set via the `model` field in
+    opencode.json, which must be refreshed by `run` before emitting the
+    shell string (see cli.py cmd_run auto-refresh logic).
     """
     real_model = resolved.get("real_model", "")
     if not real_model:
         raise ValueError("Resolved alias is missing real_model")
 
     opencode_bin = _resolve_opencode_bin()
-    model_arg = _model_arg(resolved)
 
     return {
         "env": _config_env(config_dir),
-        "argv": [opencode_bin, "--model", model_arg],
+        "argv": [opencode_bin],
     }
 
 

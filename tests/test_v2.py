@@ -155,32 +155,35 @@ class TestClaudeCodeAdapter(unittest.TestCase):
 
 class TestOpenCodeAdapter(unittest.TestCase):
     @patch("model_allocator.adapters.opencode.shutil.which", side_effect=_fake_which)
-    def test_ollama_prefix(self, _mock):
+    def test_command_has_no_model_flag(self, _mock):
+        """OpenCode ignores --model on session resumption — the flag is dead.
+        The model is set via opencode.json's model field, refreshed by run."""
         cmd = opencode.build_opencode_command({"backend": "ollama", "real_model": "qwen"}, "r")
-        self.assertEqual(cmd["argv"][-1], "ollama/qwen")
+        self.assertNotIn("--model", cmd["argv"])
+        self.assertEqual(len(cmd["argv"]), 1)  # just the binary
 
     @patch("model_allocator.adapters.opencode.shutil.which", side_effect=_fake_which)
-    def test_openrouter_prefix(self, _mock):
-        resolved = {"backend": "openai_compatible", "provider": "openrouter", "real_model": "qwen"}
-        cmd = opencode.build_opencode_command(resolved, "r")
-        self.assertEqual(cmd["argv"][-1], "openrouter/qwen")
+    def test_command_env_has_config_dir(self, _mock):
+        cmd = opencode.build_opencode_command({"backend": "ollama", "real_model": "qwen"}, "myrole")
+        self.assertIn("OPENCODE_CONFIG_DIR", cmd["env"])
+        self.assertIn("myrole", cmd["env"]["OPENCODE_CONFIG_DIR"])
 
     @patch("model_allocator.adapters.opencode.shutil.which", side_effect=_fake_which)
-    def test_minimax_bare(self, _mock):
-        resolved = {"backend": "openai_compatible", "provider": "minimax", "real_model": "minimax-m3"}
-        cmd = opencode.build_opencode_command(resolved, "r")
-        self.assertEqual(cmd["argv"][-1], "minimax-m3")
+    def test_config_model_field_ollama(self, _mock):
+        """build_opencode_config produces the model field for opencode.json."""
+        cfg = opencode.build_opencode_config({"backend": "ollama", "real_model": "qwen"})
+        self.assertEqual(cfg["model"], "ollama/qwen")
 
     @patch("model_allocator.adapters.opencode.shutil.which", side_effect=_fake_which)
-    def test_llama_cpp_prefix(self, _mock):
+    def test_config_model_field_llama_cpp(self, _mock):
         resolved = {
             "backend": "llama_cpp",
             "provider": "llama-turbo",
             "real_model": "/models/model.gguf",
             "opencode_model_id": "qwen36-35b-turbo262k",
         }
-        cmd = opencode.build_opencode_command(resolved, "r")
-        self.assertEqual(cmd["argv"][-1], "llama-turbo/qwen36-35b-turbo262k")
+        cfg = opencode.build_opencode_config(resolved)
+        self.assertEqual(cfg["model"], "llama-turbo/qwen36-35b-turbo262k")
 
     def test_render_config_ollama(self):
         resolved = {"backend": "ollama", "real_model": "qwen", "context": 131072, "default_api_base": "http://127.0.0.1:11434"}

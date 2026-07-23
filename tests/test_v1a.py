@@ -184,7 +184,9 @@ class TestOpenCodeAdapter(unittest.TestCase):
             "backend": "ollama",
         }
         cmd = opencode.build_opencode_command(resolved, "imple01")
-        self.assertEqual(cmd["argv"], ["opencode", "--model", "ollama/qwen3-coder:30b-256k"])
+        # --model flag removed: OpenCode ignores it on session resumption.
+        # Model is set via opencode.json model field (refreshed by run).
+        self.assertEqual(cmd["argv"], ["opencode"])
         self.assertEqual(cmd["env"]["OPENCODE_CONFIG_DIR"], "$HOME/.config/opencode-roles/imple01")
         self.assertEqual(cmd["env"]["OPENCODE_CONFIG"], "$HOME/.config/opencode-roles/imple01/opencode.json")
 
