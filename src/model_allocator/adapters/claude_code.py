@@ -12,10 +12,13 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
 
     Mirrors command_builder.build_claude_ollama_command and
     build_claude_openrouter_command:
-      - argv: [claude_bin, "--model", <real_model>]
+      - argv: [claude_bin, *extra_args, "--model", <real_model>]
       - env: ANTHROPIC_BASE_URL = endpoint
              ANTHROPIC_AUTH_TOKEN = "ollama" for Ollama, or $<API_KEY_ENV> for cloud
              ANTHROPIC_API_KEY = "" for cloud (prevents direct Anthropic fallback)
+             CLAUDE_CODE_MAX_OUTPUT_TOKENS (when configured)
+             CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1 (when configured)
+             MODEL_ALLOCATOR_ACTIVE_MODEL (for debugging)
 
     Minimax and other non-Anthropic-compatible cloud backends are rejected.
     """
@@ -31,7 +34,10 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
     if backend == "openai_compatible" and provider == "minimax":
         raise ValueError("Minimax does not expose an Anthropic-compatible endpoint for Claude Code")
 
-    claude_bin = os.environ.get("CLAUDE_BIN", "claude")
+    # Resolve binary: explicit env > config field > PATH
+    claude_bin = os.environ.get("CLAUDE_BIN", "")
+    if not claude_bin:
+        claude_bin = resolved.get("claude_binary", "claude")
     if os.path.isabs(claude_bin):
         if not (os.path.isfile(claude_bin) and os.access(claude_bin, os.X_OK)):
             raise ValueError(f"Claude binary not found: {claude_bin}")
@@ -63,7 +69,26 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
         env["ANTHROPIC_AUTH_TOKEN"] = f"${api_key_env}"
         env["ANTHROPIC_API_KEY"] = ""
 
+    # Max output tokens (from config or CLI override applied by caller)
+    max_tokens = resolved.get("max_output_tokens")
+    if max_tokens:
+        env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(max_tokens)
+
+    # Disable adaptive thinking
+    if resolved.get("disable_adaptive_thinking"):
+        env["CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING"] = "1"
+
+    # Allocator-active model metadata for debugging
+    alias = resolved.get("alias")
+    if alias:
+        env["MODEL_ALLOCATOR_ACTIVE_MODEL"] = alias
+
+    # Extra args (e.g. --bare) — come BEFORE --model
+    extra_args = resolved.get("claude_extra_args", [])
+    if not isinstance(extra_args, list):
+        extra_args = []
+
     return {
         "env": env,
-        "argv": [claude_bin, "--model", real_model],
+        "argv": [claude_bin, *extra_args, "--model", real_model],
     }

@@ -156,6 +156,10 @@ def cmd_run(args: argparse.Namespace) -> int:
         return EXIT_ERROR
 
     try:
+        # Apply CLI overrides before building command
+        if getattr(args, "max_output_tokens", None) is not None:
+            resolved["max_output_tokens"] = args.max_output_tokens
+
         if args.client == "opencode":
             config_dir = resolved.get("config_dir") or args.role
             command_object = opencode.build_opencode_command(resolved, config_dir)
@@ -571,6 +575,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run = sub.add_parser("run", help="Render the tmux-safe shell string for a role/client")
     p_run.add_argument("--role", required=True, help="Role key")
     p_run.add_argument("--client", required=True, help="Client key (e.g. opencode, claude-code)")
+    p_run.add_argument("--max-output-tokens", type=int, default=None, help="Override max_output_tokens for Claude Code roles")
     p_run.set_defaults(func=cmd_run)
 
     p_start = sub.add_parser("start", help="Warm up the backend runtime for an alias")
