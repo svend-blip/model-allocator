@@ -72,3 +72,10 @@ class Resolver:
 
     def list_aliases(self) -> list[str]:
         return list(self.config.get("models", {}).keys())
+
+    def get_clients(self, alias_name: str) -> list[str]:
+        """Return the list of declared client keys for an alias."""
+        models = self.config.get("models", {})
+        alias = models.get(alias_name, {})
+        clients = alias.get("clients", {})
+        return list(clients.keys()) if isinstance(clients, dict) else []

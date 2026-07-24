@@ -92,12 +92,34 @@ def cmd_list(args: argparse.Namespace) -> int:
     aliases = resolver.list_aliases()
     entries = []
     for alias_name in aliases:
-        result = validator.validate(alias_name, args.client)
-        if args.only_ok and result["validation_status"] != "OK":
+        # Validate against the requested client if specified, otherwise
+        # validate against all declared clients and show OK if any pass.
+        if args.client:
+            result = validator.validate(alias_name, args.client)
+            status = result["validation_status"]
+        else:
+            declared = resolver.get_clients(alias_name)
+            if not declared:
+                result = validator.validate(alias_name, "opencode")
+                status = result["validation_status"]
+            else:
+                best = "ERROR"
+                for c in declared:
+                    r = validator.validate(alias_name, c)
+                    s = r["validation_status"]
+                    if s == "OK":
+                        best = "OK"
+                        result = r
+                        break
+                    if s == "WARNING" and best == "ERROR":
+                        best = "WARNING"
+                        result = r
+                status = best
+        if args.only_ok and status != "OK":
             continue
         entries.append({
             "alias": alias_name,
-            "status": result["validation_status"],
+            "status": status,
             "backend": result.get("resolved_backend"),
             "real_model": result.get("resolved_real_model"),
         })
@@ -580,7 +602,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_list = sub.add_parser("list", help="List configured aliases")
     p_list.add_argument("--only-ok", action="store_true", help="Show only aliases that validate as OK")
-    p_list.add_argument("--client", default="opencode", help="Client key to validate against")
+    p_list.add_argument("--client", default=None, help="Client key to validate against (default: all declared clients)")
     p_list.set_defaults(func=cmd_list)
 
     p_status = sub.add_parser("status", help="Report backend/runtime status for an alias")

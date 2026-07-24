@@ -55,8 +55,11 @@ class OllamaAdapter:
             return {"available": False, "error": str(exc)}
         models = data.get("models", [])
         names = {m.get("name", "") for m in models}
-        # Ollama tag names sometimes omit :latest.
+        # Ollama API always returns tags (:latest); real_model may omit them.
         variants = {self.real_model, self.real_model.rsplit(":", 1)[0]}
+        # If real_model has no tag, also try with :latest appended.
+        if ":" not in self.real_model:
+            variants.add(self.real_model + ":latest")
         available = bool(names & variants)
         return {"available": available, "error": None if available else "Model not found in Ollama"}
 
