@@ -55,7 +55,7 @@ models:
     max_output_tokens: 32768
     clients:
       claude-code: true
-      opencode: false
+      opencode: true
   trend-local:
     runtime_profile: local_ollama_cuda0
     real_model: qwen3.6-35b-48k
