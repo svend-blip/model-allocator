@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="locale" content="" />
+    <title data-slot="lbl_page_title">Loading...</title>
+    <link rel="stylesheet" href="/static/css/theme.css" />
+</head>
+<body>
+    <main class="container">
+        <div class="header-row">
+            <h1 data-slot="lbl_heading_main">Loading...</h1>
+            <div class="lang-selector">
+                <label for="lang-dropdown" class="lang-label" data-slot="lbl_lang_label">Language</label>
+                <select id="lang-dropdown">
+                </select>
+            </div>
+        </div>
+
+        <!-- Daily -->
+        <section class="panel-group" id="pg-daily">
+            <div class="panel-group-header" data-group="daily">
+                <h2 data-slot="lbl_pg_daily">Daily</h2>
+                <span class="panel-group-toggle">&#9660;</span>
+            </div>
+            <div class="panel-group-body"></div>
+        </section>
+
+        <!-- Journals -->
+        <section class="panel-group" id="pg-journals">
+            <div class="panel-group-header" data-group="journals">
+                <h2 data-slot="lbl_pg_journals">Journals</h2>
+                <span class="panel-group-toggle">&#9660;</span>
+            </div>
+            <div class="panel-group-body"></div>
+        </section>
+
+        <!-- Reports -->
+        <section class="panel-group" id="pg-reports">
+            <div class="panel-group-header" data-group="reports">
+                <h2 data-slot="lbl_pg_reports">Reports</h2>
+                <span class="panel-group-toggle">&#9660;</span>
+            </div>
+            <div class="panel-group-body"></div>
+        </section>
+
+        <!-- Periodic -->
+        <section class="panel-group" id="pg-periodic">
+            <div class="panel-group-header" data-group="periodic">
+                <h2 data-slot="lbl_pg_periodic">Periodic</h2>
+                <span class="panel-group-toggle">&#9660;</span>
+            </div>
+            <div class="panel-group-body"></div>
+        </section>
+
+        <!-- Setup -->
+        <section class="panel-group" id="pg-setup">
+            <div class="panel-group-header" data-group="setup">
+                <h2 data-slot="lbl_pg_setup">Setup</h2>
+                <span class="panel-group-toggle">&#9660;</span>
+            </div>
+            <div class="panel-group-body">
+                <!-- Allocation Models subgroup -->
+                <section class="panel-subgroup" id="psg-models">
+                    <div class="panel-subgroup-header" data-subgroup="sg_setup_models">
+                        <h3 data-slot="lbl_sg_models">Allocation Models</h3>
+                        <span class="panel-subgroup-toggle">&#9660;</span>
+                    </div>
+                    <div class="panel-subgroup-body" id="models-content"></div>
+                </section>
+
+                <!-- Runtime Profiles subgroup -->
+                <section class="panel-subgroup" id="psg-profiles">
+                    <div class="panel-subgroup-header" data-subgroup="sg_setup_profiles">
+                        <h3 data-slot="lbl_sg_profiles">Runtime Profiles</h3>
+                        <span class="panel-subgroup-toggle">&#9660;</span>
+                    </div>
+                    <div class="panel-subgroup-body" id="profiles-content"></div>
+                </section>
+
+                <!-- Validation subgroup -->
+                <section class="panel-subgroup" id="psg-validation">
+                    <div class="panel-subgroup-header" data-subgroup="sg_setup_validation">
+                        <h3 data-slot="lbl_sg_validation">Validation</h3>
+                        <span class="panel-subgroup-toggle">&#9660;</span>
+                    </div>
+                    <div class="panel-subgroup-body" id="validation-content"></div>
+                </section>
+
+                <!-- System subgroup -->
+                <section class="panel-subgroup" id="psg-system">
+                    <div class="panel-subgroup-header" data-subgroup="sg_setup_system">
+                        <h3 data-slot="lbl_sg_system">System</h3>
+                        <span class="panel-subgroup-toggle">&#9660;</span>
+                    </div>
+                    <div class="panel-subgroup-body" id="system-content"></div>
+                </section>
+            </div>
+        </section>
+    </main>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
