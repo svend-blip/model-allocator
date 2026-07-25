@@ -643,10 +643,12 @@ async def get_config():
 @app.post("/api/doctor")
 async def run_doctor():
     """Run doctor diagnostics."""
-    from ..doctor_cli import run_doctor as _run_doc
+    from ..config_writer import load_raw
+    from ..schema import lint_config
     try:
-        result = _run_doc(CONFIG_DIR)
-        return {"status": "ok", "result": result}
+        raw = load_raw(CONFIG_DIR)
+        report = lint_config(raw)
+        return {"status": "ok", "result": report}
     except Exception as e:
         return {"status": "error", "error": str(e)}
 
