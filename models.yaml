@@ -90,7 +90,7 @@ models:
       claude-code: true
   review01-local:
     runtime_profile: local_ollama_cuda0
-    real_model: ornith35b-q5-64k
+    real_model: qwen3.6:35b-a3b-64k
     context: 65536
     lifecycle_policy: stop_after_step
     clients:

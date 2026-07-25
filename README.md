@@ -255,6 +255,35 @@ Fix: set a top-level `model` field in `opencode.json` (the only reliable way).
 
 ## ONYX runtime (optional, V5)
 
+> **Integration Pattern for LLMs**
+
+The model-allocator integration pattern is designed to be clear enough for an LLM to implement without mistakes:
+
+### Three-layer architecture
+1. **bridgeV002** chooses which role uses which alias (database-driven)
+2. **Model Allocator** resolves alias → backend/model/runtime (models.yaml)
+3. **Backend adapters** own concrete start/stop/validate commands
+
+### How to wire model-allocator into any project
+1. **Step 1:** Define aliases in models.yaml (alias → real_model + runtime_profile + context) 
+2. **Step 2:** Reference aliases in bridge_roles.default_model_alias (database)
+3. **Step 3:** dispatch.py resolves via get_effective_model_source() → model_allocator CLI  
+4. **Step 4:** start_coding.py generates opencode.json with resolved model/provider
+5. **Step 5:** dispatch.py uses LeaseRegistry.acquire() for reference-counted lifecycle
+
+### Common LLM mistakes to avoid
+- DO NOT hardcode model names in dispatch code — always use aliases
+- DO NOT call ollama stop/start directly — use model-allocator CLI or LeaseRegistry
+- DO NOT assume model context size — resolve via allocator validate
+- DO NOT skip the LeaseRegistry — unconditional stop kills other jobs sharing the alias
+- DO NOT hardcode /home/svend paths — use config.py getters
+
+### The dispatch integration points (exact functions in dispatch.py)
+- `signal_send`: LeaseRegistry.acquire(job_id, alias) — acquires lease + starts model 
+- `signal_complete`: LeaseRegistry.release(handoff_id, alias) — releases lease, stops if last
+- `signal_complete`: _advance_chain(job) — fallback chain advancement  
+- `start_coding.py`: get_effective_model_source() → model-allocator CLI → opencode.json
+
 ONYX (github.com/onyx-dot-app/onyx) is an OPTIONAL knowledge runtime.
 Nothing requires it: only aliases whose profile declares `backend: onyx`
 touch it, and with the stack down those aliases fail cleanly while every
