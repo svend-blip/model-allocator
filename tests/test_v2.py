@@ -15,6 +15,7 @@ from model_allocator import cli
 from model_allocator.adapters import claude_code
 from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import opencode
+from model_allocator.adapters import anthropic as anthropic_adapter
 from model_allocator.adapters import openai_compatible as openai_adapter
 from model_allocator.renderer import render_tmux_shell_string
 from model_allocator.resolver import Resolver
@@ -514,6 +515,54 @@ class TestResolverPreservesAliasFields(unittest.TestCase):
             self.assertIn("turbo4", argv)
             self.assertIn("--flash-attn", argv)
             self.assertIn("on", argv)
+
+
+class TestAnthropicAdapter(unittest.TestCase):
+    def test_credentials_present_when_key_set(self):
+        adapter = anthropic_adapter.AnthropicAdapter(api_key_env="TEST_ANTHROPIC_KEY")
+        with patch.dict(os.environ, {"TEST_ANTHROPIC_KEY": "sk-ant-12345"}):
+            result = adapter.are_credentials_present()
+        self.assertTrue(result["present"])
+        self.assertIsNone(result["error"])
+
+    def test_credentials_missing_when_key_not_set(self):
+        adapter = anthropic_adapter.AnthropicAdapter(api_key_env="MISSING_KEY")
+        result = adapter.are_credentials_present()
+        self.assertFalse(result["present"])
+        self.assertIsNotNone(result["error"])
+
+    def test_start_succeeds_when_credentials_present(self):
+        adapter = anthropic_adapter.AnthropicAdapter(api_key_env="TEST_ANTHROPIC_KEY")
+        with patch.dict(os.environ, {"TEST_ANTHROPIC_KEY": "sk-ant-12345"}):
+            result = adapter.start()
+        self.assertTrue(result["started"])
+        self.assertIsNone(result["error"])
+
+    def test_start_fails_when_credentials_missing(self):
+        adapter = anthropic_adapter.AnthropicAdapter(api_key_env="MISSING_KEY")
+        result = adapter.start()
+        self.assertFalse(result["started"])
+        self.assertIsNotNone(result["error"])
+
+    def test_stop_is_noop(self):
+        adapter = anthropic_adapter.AnthropicAdapter()
+        result = adapter.stop()
+        self.assertTrue(result["stopped"])
+        self.assertIsNone(result["error"])
+
+    def test_unload_is_noop(self):
+        adapter = anthropic_adapter.AnthropicAdapter()
+        result = adapter.unload()
+        self.assertTrue(result["unloaded"])
+        self.assertIsNone(result["error"])
+
+    def test_status_reports_credentials(self):
+        adapter = anthropic_adapter.AnthropicAdapter(api_key_env="TEST_ANTHROPIC_KEY")
+        with patch.dict(os.environ, {"TEST_ANTHROPIC_KEY": "sk-ant-12345"}):
+            result = adapter.status()
+        self.assertTrue(result["reachable"])
+        self.assertTrue(result["credentials_present"])
+        self.assertIsNone(result["error"])
 
 
 if __name__ == "__main__":
