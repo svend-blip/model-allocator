@@ -9,8 +9,12 @@ models:
       claude-code: true
   imple01-local:
     runtime_profile: local_ollama_cuda0
-    real_model: qwen3-coder:30b-256k
-    context: 131072
+    # The 256k variant loads with its full baked context (262144) and
+    # inflates to 33 GB — spilling 6% to CPU even as the only resident
+    # model. The 96k-baked variant fits entirely on GPU; compiled handoffs
+    # are far below 96k tokens.
+    real_model: qwen3-coder-30b-96k
+    context: 96256
     lifecycle_policy: stop_after_step
     clients:
       opencode: true
