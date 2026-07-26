@@ -30,7 +30,7 @@ class Issue:
     message: str
 
 
-BACKENDS = ("ollama", "llama_cpp", "openai_compatible", "onyx")
+BACKENDS = ("ollama", "llama_cpp", "openai_compatible", "onyx", "anthropic")
 
 COMMON_ALIAS_FIELDS: dict[str, object] = {
     "runtime_profile": str,
