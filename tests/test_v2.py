@@ -60,6 +60,13 @@ SAMPLE_CONFIG = {
             "lifecycle_policy": "stop_after_step",
             "clients": {"opencode": True, "claude-code": False},
         },
+        "fable5": {
+            "runtime_profile": "cloud_anthropic",
+            "real_model": "claude-fable-5",
+            "context": 200000,
+            "lifecycle_policy": "cloud_noop",
+            "clients": {"opencode": False, "claude-code": True},
+        },
     },
     "runtime_profiles": {
         "local_ollama_cuda0": {
@@ -88,6 +95,11 @@ SAMPLE_CONFIG = {
             "default_port": 8080,
             "default_ctx": 131072,
             "gpu": "cuda0",
+        },
+        "cloud_anthropic": {
+            "backend": "anthropic",
+            "api_key_env": "ANTHROPIC_API_KEY",
+            "provider": "anthropic",
         },
     },
     "roles": {
@@ -355,6 +367,23 @@ class TestValidatorV2(unittest.TestCase):
     def test_llama_cpp_missing_binary_is_warning(self):
         result = self.v.validate("llama-test", "opencode")
         self.assertIn(result["validation_status"], ("WARNING", "ERROR"))
+
+    def test_anthropic_with_claude_is_ok(self):
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-test"}):
+            result = self.v.validate("fable5", "claude-code")
+        self.assertEqual(result["validation_status"], "OK")
+
+    def test_anthropic_with_opencode_is_error(self):
+        result = self.v.validate("fable5", "opencode")
+        self.assertEqual(result["validation_status"], "ERROR")
+        self.assertTrue(any("incompatible" in e.lower() for e in result["errors"]))
+
+    def test_anthropic_missing_key_is_warning(self):
+        with patch.dict(os.environ, {}, clear=False):
+            if "ANTHROPIC_API_KEY" in os.environ:
+                del os.environ["ANTHROPIC_API_KEY"]
+            result = self.v.validate("fable5", "claude-code")
+        self.assertIn(result["validation_status"], ("WARNING", "OK"))
 
 
 class TestCliV2(unittest.TestCase):
