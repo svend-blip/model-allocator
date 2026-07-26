@@ -28,6 +28,11 @@ runtime_profiles:
     default_api_base: https://openrouter.ai/api
     provider: openrouter
 
+  cloud_anthropic:
+    backend: anthropic
+    api_key_env: ANTHROPIC_API_KEY
+    provider: anthropic
+
   local_onyx:
     backend: onyx
     api_base_env: ONYX_API_BASE

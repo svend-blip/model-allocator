@@ -117,3 +117,10 @@ models:
     lifecycle_policy: cloud_noop
     clients:
       opencode: true
+  fable5:
+    runtime_profile: cloud_anthropic
+    real_model: claude-fable-5
+    context: 200000
+    lifecycle_policy: cloud_noop
+    clients:
+      claude-code: true
