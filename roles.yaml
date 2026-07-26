@@ -141,3 +141,9 @@ roles:
     config_dir: fable5-role
     client_aliases:
       claude-code: fable5
+
+  supervisor:
+    default_alias: fable5
+    config_dir: supervisor
+    client_aliases:
+      claude-code: fable5
