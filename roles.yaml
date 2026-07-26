@@ -135,3 +135,9 @@ roles:
     default_alias: company-knowledge
     client_aliases:
       headless: company-knowledge
+
+  fable5-role:
+    default_alias: fable5
+    config_dir: fable5-role
+    client_aliases:
+      claude-code: fable5
