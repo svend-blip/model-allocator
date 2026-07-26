@@ -97,7 +97,11 @@ models:
       opencode: true
   review02-local:
     runtime_profile: local_ollama_cuda0
-    real_model: qwen3.6:27b-q4_K_M
+    # Same model as review01-local: the 35b-a3b MoE follows dispatch
+    # instructions more reliably than the 27b dense q4 (which looped on
+    # embedded signal commands), and the review01->review02 transition
+    # avoids a full model swap since the weights are already loaded.
+    real_model: qwen3.6:35b-a3b-64k
     context: 65536
     lifecycle_policy: stop_after_step
     clients:
