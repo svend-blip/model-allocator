@@ -45,3 +45,4 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 allocator.db
+.worktrees/
