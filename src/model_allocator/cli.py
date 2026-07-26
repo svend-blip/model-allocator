@@ -12,6 +12,7 @@ from model_allocator.resolver import ResolutionError, Resolver
 from model_allocator.validator import Validator
 from model_allocator import config_writer
 from model_allocator.doctor_cli import cmd_doctor
+from model_allocator.adapters import anthropic as anthropic_adapter
 from model_allocator.adapters import claude_code
 from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import opencode
@@ -58,6 +59,10 @@ def _get_backend_adapter(resolved: dict):
         return llama_cpp_adapter.LlamaCppAdapter(resolved)
     if backend == "onyx":
         return onyx_adapter.OnyxAdapter.from_resolved(resolved)
+    if backend == "anthropic":
+        return anthropic_adapter.AnthropicAdapter(
+            api_key_env=resolved.get("api_key_env", "ANTHROPIC_API_KEY"),
+        )
     raise ValueError(f"Unsupported backend: {backend}")
 
 
@@ -154,11 +159,15 @@ def cmd_status(args: argparse.Namespace) -> int:
         report.update(adapter.status())
     elif backend == "llama_cpp":
         report.update(adapter.status())
+    elif backend == "anthropic":
+        report.update(adapter.status())
 
     print(json.dumps(report, indent=2, default=str))
     if backend == "ollama" and not report["reachable"]["reachable"]:
         return EXIT_WARNING
     if backend in ("openai_compatible", "llama_cpp") and not report.get("running", False):
+        return EXIT_WARNING
+    if backend == "anthropic" and not report.get("credentials_present", False):
         return EXIT_WARNING
     return EXIT_OK
 
@@ -258,6 +267,8 @@ def cmd_start(args: argparse.Namespace) -> int:
         result = adapter.start()
     elif backend == "llama_cpp":
         result = adapter.start(timeout=args.timeout)
+    elif backend == "anthropic":
+        result = adapter.start()
     else:
         print(f"ERROR: start not implemented for backend '{backend}'", file=sys.stderr)
         return EXIT_ERROR
@@ -289,6 +300,8 @@ def cmd_stop(args: argparse.Namespace) -> int:
         result = adapter.stop()
     elif backend == "llama_cpp":
         result = adapter.stop(timeout=args.timeout)
+    elif backend == "anthropic":
+        result = adapter.stop()
     else:
         print(f"ERROR: stop not implemented for backend '{backend}'", file=sys.stderr)
         return EXIT_ERROR
@@ -320,6 +333,8 @@ def cmd_unload(args: argparse.Namespace) -> int:
         result = adapter.unload()
     elif backend == "llama_cpp":
         result = adapter.unload(timeout=args.timeout)
+    elif backend == "anthropic":
+        result = adapter.unload()
     else:
         print(f"ERROR: unload not implemented for backend '{backend}'", file=sys.stderr)
         return EXIT_ERROR
@@ -359,6 +374,8 @@ def cmd_preflight(args: argparse.Namespace) -> int:
         start_result = adapter.start()
     elif backend == "llama_cpp":
         start_result = adapter.start(timeout=args.start_timeout)
+    elif backend == "anthropic":
+        start_result = adapter.start()
     else:
         print(f"NOT READY: backend '{backend}' not supported", file=sys.stderr)
         return EXIT_ERROR

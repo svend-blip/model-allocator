@@ -422,6 +422,14 @@ class TestCliV2(unittest.TestCase):
             "    clients:\n"
             "      opencode: true\n"
             "      claude-code: false\n"
+            "  fable5:\n"
+            "    runtime_profile: cloud_anthropic\n"
+            "    real_model: claude-fable-5\n"
+            "    context: 200000\n"
+            "    lifecycle_policy: cloud_noop\n"
+            "    clients:\n"
+            "      opencode: false\n"
+            "      claude-code: true\n"
         )
         (path / "runtime_profiles.yaml").write_text(
             "runtime_profiles:\n"
@@ -439,6 +447,10 @@ class TestCliV2(unittest.TestCase):
             "    backend: llama_cpp\n"
             "    server_bin_env: LLAMA_SERVER_BIN\n"
             "    default_port: 8080\n"
+            "  cloud_anthropic:\n"
+            "    backend: anthropic\n"
+            "    api_key_env: ANTHROPIC_API_KEY\n"
+            "    provider: anthropic\n"
         )
         (path / "roles.yaml").write_text(
             "roles:\n"
@@ -452,6 +464,11 @@ class TestCliV2(unittest.TestCase):
             "    config_dir: openrouter-test\n"
             "    client_aliases:\n"
             "      opencode: openrouter-test\n"
+            "  fable5-role:\n"
+            "    default_alias: fable5\n"
+            "    config_dir: fable5-role\n"
+            "    client_aliases:\n"
+            "      claude-code: fable5\n"
         )
 
     @patch("model_allocator.adapters.claude_code.shutil.which", side_effect=_fake_which)
@@ -527,6 +544,31 @@ class TestCliV2(unittest.TestCase):
     def test_unload_missing_alias_is_error(self):
         code = cli.main(["--config-dir", str(self.cfg_dir), "unload", "--alias", "missing"])
         self.assertEqual(code, cli.EXIT_ERROR)
+
+    @patch("model_allocator.adapters.claude_code.shutil.which", side_effect=_fake_which)
+    def test_run_fable5_claude(self, _mock):
+        code = cli.main(["--config-dir", str(self.cfg_dir), "run", "--role", "fable5-role", "--client", "claude-code"])
+        self.assertEqual(code, cli.EXIT_OK)
+
+    def test_start_anthropic_alias(self):
+        with patch.dict(os.environ, {"ANTHROPIC_API_KEY": "sk-ant-test"}):
+            code = cli.main(["--config-dir", str(self.cfg_dir), "start", "--alias", "fable5"])
+        self.assertEqual(code, cli.EXIT_OK)
+
+    def test_start_anthropic_alias_missing_key(self):
+        with patch.dict(os.environ, {}, clear=False):
+            if "ANTHROPIC_API_KEY" in os.environ:
+                del os.environ["ANTHROPIC_API_KEY"]
+            code = cli.main(["--config-dir", str(self.cfg_dir), "start", "--alias", "fable5"])
+        self.assertEqual(code, cli.EXIT_WARNING)
+
+    def test_stop_anthropic_alias(self):
+        code = cli.main(["--config-dir", str(self.cfg_dir), "stop", "--alias", "fable5"])
+        self.assertEqual(code, cli.EXIT_OK)
+
+    def test_unload_anthropic_alias(self):
+        code = cli.main(["--config-dir", str(self.cfg_dir), "unload", "--alias", "fable5"])
+        self.assertEqual(code, cli.EXIT_OK)
 
 
 class TestResolverPreservesAliasFields(unittest.TestCase):
