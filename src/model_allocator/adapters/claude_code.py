@@ -27,7 +27,7 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
         raise ValueError("Resolved alias is missing real_model")
 
     backend = resolved.get("backend")
-    if backend not in ("ollama", "openai_compatible"):
+    if backend not in ("ollama", "openai_compatible", "anthropic"):
         raise ValueError(f"Backend '{backend}' is not supported by the Claude Code adapter")
 
     provider = resolved.get("provider", "")
@@ -53,6 +53,9 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
         endpoint = os.environ.get(api_base_env, "") or resolved.get("default_api_base", "http://127.0.0.1:11434")
         env["ANTHROPIC_BASE_URL"] = endpoint
         env["ANTHROPIC_AUTH_TOKEN"] = "ollama"
+    elif backend == "anthropic":
+        api_key_env = resolved.get("api_key_env", "ANTHROPIC_API_KEY")
+        env["ANTHROPIC_API_KEY"] = f"${api_key_env}"
     else:
         api_base_env = resolved.get("api_base_env")
         api_key_env = resolved.get("api_key_env")

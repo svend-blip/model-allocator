@@ -153,6 +153,41 @@ class TestClaudeCodeAdapter(unittest.TestCase):
         with self.assertRaises(ValueError):
             claude_code.build_claude_code_command(resolved)
 
+    @patch("model_allocator.adapters.claude_code.shutil.which", side_effect=_fake_which)
+    def test_anthropic_backend(self, _mock):
+        resolved = {
+            "backend": "anthropic",
+            "real_model": "claude-fable-5",
+            "api_key_env": "ANTHROPIC_API_KEY",
+        }
+        cmd = claude_code.build_claude_code_command(resolved)
+        self.assertEqual(cmd["argv"], ["/usr/bin/claude", "--model", "claude-fable-5"])
+        self.assertEqual(cmd["env"]["ANTHROPIC_API_KEY"], "$ANTHROPIC_API_KEY")
+        self.assertNotIn("ANTHROPIC_BASE_URL", cmd["env"])
+        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", cmd["env"])
+
+    @patch("model_allocator.adapters.claude_code.shutil.which", side_effect=_fake_which)
+    def test_anthropic_backend_with_max_output_tokens(self, _mock):
+        resolved = {
+            "backend": "anthropic",
+            "real_model": "claude-fable-5",
+            "api_key_env": "ANTHROPIC_API_KEY",
+            "max_output_tokens": 65536,
+        }
+        cmd = claude_code.build_claude_code_command(resolved)
+        self.assertEqual(cmd["env"]["CLAUDE_CODE_MAX_OUTPUT_TOKENS"], "65536")
+
+    @patch("model_allocator.adapters.claude_code.shutil.which", side_effect=_fake_which)
+    def test_anthropic_backend_with_alias_metadata(self, _mock):
+        resolved = {
+            "backend": "anthropic",
+            "real_model": "claude-fable-5",
+            "api_key_env": "ANTHROPIC_API_KEY",
+            "alias": "fable5",
+        }
+        cmd = claude_code.build_claude_code_command(resolved)
+        self.assertEqual(cmd["env"]["MODEL_ALLOCATOR_ACTIVE_MODEL"], "fable5")
+
 
 class TestOpenCodeAdapter(unittest.TestCase):
     @patch("model_allocator.adapters.opencode.shutil.which", side_effect=_fake_which)
