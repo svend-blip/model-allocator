@@ -175,8 +175,8 @@ class TestClaudeCodeAdapter(unittest.TestCase):
         cmd = claude_code.build_claude_code_command(resolved)
         self.assertEqual(cmd["argv"], ["/usr/bin/claude", "--model", "claude-fable-5"])
         self.assertEqual(cmd["env"]["ANTHROPIC_API_KEY"], "$ANTHROPIC_API_KEY")
-        self.assertNotIn("ANTHROPIC_BASE_URL", cmd["env"])
-        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", cmd["env"])
+        self.assertEqual(cmd["env"]["ANTHROPIC_BASE_URL"], "")
+        self.assertEqual(cmd["env"]["ANTHROPIC_AUTH_TOKEN"], "")
 
     @patch("model_allocator.adapters.claude_code.shutil.which", side_effect=_fake_which)
     def test_anthropic_backend_with_max_output_tokens(self, _mock):

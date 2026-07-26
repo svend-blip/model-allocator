@@ -56,6 +56,8 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
     elif backend == "anthropic":
         api_key_env = resolved.get("api_key_env", "ANTHROPIC_API_KEY")
         env["ANTHROPIC_API_KEY"] = f"${api_key_env}"
+        env["ANTHROPIC_BASE_URL"] = ""
+        env["ANTHROPIC_AUTH_TOKEN"] = ""
     else:
         api_base_env = resolved.get("api_base_env")
         api_key_env = resolved.get("api_key_env")
