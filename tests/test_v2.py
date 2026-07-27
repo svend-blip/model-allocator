@@ -240,6 +240,44 @@ class TestOpenCodeAdapter(unittest.TestCase):
         self.assertIn("qwen", cfg["provider"]["ollama"]["models"])
         self.assertEqual(cfg["provider"]["ollama"]["models"]["qwen"]["limit"]["context"], 131072)
 
+    def test_render_config_ollama_v1_mode(self):
+        """opencode_ollama_mode=openai_compatible routes via Ollama's /v1
+        endpoint — fixes dropped tool calls in OpenCode's built-in provider."""
+        resolved = {
+            "backend": "ollama",
+            "real_model": "qwen3-coder-30b-96k",
+            "context": 96256,
+            "default_api_base": "http://127.0.0.1:11434",
+            "opencode_ollama_mode": "openai_compatible",
+        }
+        cfg = opencode.build_opencode_config(resolved)
+        self.assertEqual(cfg["model"], "ollama-v1/qwen3-coder-30b-96k")
+        provider = cfg["provider"]["ollama-v1"]
+        self.assertEqual(provider["npm"], "@ai-sdk/openai-compatible")
+        self.assertEqual(provider["options"]["baseURL"], "http://127.0.0.1:11434/v1")
+        model_entry = provider["models"]["qwen3-coder-30b-96k"]
+        self.assertEqual(model_entry["limit"]["context"], 96256)
+
+    def test_render_config_ollama_v1_mode_custom_provider_name(self):
+        resolved = {
+            "backend": "ollama",
+            "real_model": "qwen",
+            "default_api_base": "http://127.0.0.1:11434",
+            "opencode_ollama_mode": "openai_compatible",
+            "opencode_provider_name": "my-ollama",
+        }
+        cfg = opencode.build_opencode_config(resolved)
+        self.assertEqual(cfg["model"], "my-ollama/qwen")
+        self.assertIn("my-ollama", cfg["provider"])
+
+    def test_render_config_ollama_without_mode_stays_builtin(self):
+        """No opt-in flag → the built-in ollama provider is unchanged."""
+        resolved = {"backend": "ollama", "real_model": "qwen", "default_api_base": "http://127.0.0.1:11434"}
+        cfg = opencode.build_opencode_config(resolved)
+        self.assertIn("ollama", cfg["provider"])
+        self.assertNotIn("ollama-v1", cfg["provider"])
+        self.assertEqual(cfg["model"], "ollama/qwen")
+
     def test_render_config_llama_cpp(self):
         resolved = {
             "backend": "llama_cpp",

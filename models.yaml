@@ -16,6 +16,11 @@ models:
     real_model: qwen3-coder-30b-96k
     context: 96256
     lifecycle_policy: stop_after_step
+    # OpenCode's built-in ollama provider drops qwen3-coder's tool calls
+    # (native XML emitted as plain text, nothing executes — 2026-07-27).
+    # Route via @ai-sdk/openai-compatible against Ollama's /v1 endpoint,
+    # which returns structured tool_calls for the same model.
+    opencode_ollama_mode: openai_compatible
     clients:
       opencode: true
       claude-code: false

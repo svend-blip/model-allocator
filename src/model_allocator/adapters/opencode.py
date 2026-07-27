@@ -27,12 +27,32 @@ def _config_env(config_dir: str) -> dict[str, str]:
     }
 
 
+def _ollama_v1_mode(resolved: dict) -> bool:
+    """True when the alias opts into OpenCode's openai-compatible provider
+    against Ollama's /v1 endpoint instead of the built-in ollama provider.
+
+    OpenCode's built-in ollama provider fails to deliver structured tool
+    calls for some models (live incident 2026-07-27: qwen3-coder emitted
+    its native XML tool syntax as plain text and no tool ever executed).
+    Ollama's OpenAI-compatible /v1 endpoint returns structured tool_calls
+    for the same models, so routing through @ai-sdk/openai-compatible
+    fixes tool calling without touching the model or server.
+    """
+    return resolved.get("opencode_ollama_mode") == "openai_compatible"
+
+
+def _ollama_v1_provider_name(resolved: dict) -> str:
+    return resolved.get("opencode_provider_name") or "ollama-v1"
+
+
 def _model_arg(resolved: dict) -> str:
     backend = resolved.get("backend")
     real_model = resolved.get("real_model", "")
     provider = resolved.get("provider", "")
 
     if backend == "ollama":
+        if _ollama_v1_mode(resolved):
+            return f"{_ollama_v1_provider_name(resolved)}/{real_model}"
         return f"ollama/{real_model}"
     if backend == "openai_compatible":
         if provider == "openrouter":
@@ -136,6 +156,22 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
             model_entry["limit"] = {
                 "context": int(context),
                 "output": min(int(context), 65536),
+            }
+        if _ollama_v1_mode(resolved):
+            provider_name = _ollama_v1_provider_name(resolved)
+            model_entry["name"] = resolved.get("display_name") or model_id
+            return {
+                "model": model_field,
+                "provider": {
+                    provider_name: {
+                        "npm": "@ai-sdk/openai-compatible",
+                        "name": provider_name,
+                        "options": {"baseURL": f"{api_base.rstrip('/')}/v1"},
+                        "models": {
+                            model_id: model_entry,
+                        },
+                    },
+                },
             }
         return {
             "model": model_field,
