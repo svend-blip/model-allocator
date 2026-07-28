@@ -45,6 +45,19 @@ def _ollama_v1_provider_name(resolved: dict) -> str:
     return resolved.get("opencode_provider_name") or "ollama-v1"
 
 
+def _openai_provider_name(resolved: dict) -> str:
+    """Provider key for an openai_compatible alias.
+
+    The same value keys the provider block in opencode.json and prefixes the
+    top-level `model` field, so both call sites must agree.
+    """
+    return (
+        resolved.get("opencode_provider_name")
+        or resolved.get("provider", "")
+        or "openai-compatible"
+    )
+
+
 def _model_arg(resolved: dict) -> str:
     backend = resolved.get("backend")
     real_model = resolved.get("real_model", "")
@@ -55,11 +68,11 @@ def _model_arg(resolved: dict) -> str:
             return f"{_ollama_v1_provider_name(resolved)}/{real_model}"
         return f"ollama/{real_model}"
     if backend == "openai_compatible":
-        if provider == "openrouter":
-            return f"openrouter/{real_model}"
-        if provider == "minimax":
-            return real_model
-        return real_model
+        # build_opencode_config declares a custom provider block keyed by the
+        # provider name, so the model reference must be provider-qualified —
+        # a bare model id resolves against no provider and OpenCode falls back
+        # to its own default model.
+        return f"{_openai_provider_name(resolved)}/{real_model}"
     if backend == "llama_cpp":
         provider_name = resolved.get("opencode_provider_name") or provider or "llama-local"
         model_id = resolved.get("opencode_model_id") or real_model or "model"
@@ -121,24 +134,37 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
         }
 
     if backend == "openai_compatible":
-        provider_name = resolved.get("opencode_provider_name") or provider or "openai-compatible"
+        provider_name = _openai_provider_name(resolved)
         model_id = resolved.get("opencode_model_id") or resolved.get("real_model") or "model"
         api_base = resolved.get("default_api_base", "")
         api_base_env = resolved.get("api_base_env")
         if api_base_env:
             api_base = os.environ.get(api_base_env, "") or api_base
         base_url = f"{api_base.rstrip('/')}/v1" if api_base else ""
+        options: dict[str, Any] = {"baseURL": base_url}
+        # OpenCode only resolves credentials on its own for providers it knows
+        # natively; a custom @ai-sdk/openai-compatible block authenticates with
+        # nothing unless the key is named here. {env:VAR} keeps the secret out
+        # of the rendered file — OpenCode expands it at startup.
+        api_key_env = resolved.get("api_key_env")
+        if api_key_env:
+            options["apiKey"] = "{env:" + api_key_env + "}"
+        model_entry: dict[str, Any] = {"name": resolved.get("display_name") or model_id}
+        context = resolved.get("context")
+        if context:
+            model_entry["limit"] = {
+                "context": int(context),
+                "output": int(resolved.get("max_output_tokens") or min(int(context), 65536)),
+            }
         return {
             "model": model_field,
             "provider": {
                 provider_name: {
                     "npm": "@ai-sdk/openai-compatible",
                     "name": provider_name,
-                    "options": {"baseURL": base_url},
+                    "options": options,
                     "models": {
-                        model_id: {
-                            "name": resolved.get("display_name") or model_id,
-                        },
+                        model_id: model_entry,
                     },
                 },
             },

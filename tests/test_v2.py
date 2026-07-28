@@ -316,6 +316,49 @@ class TestOpenCodeAdapter(unittest.TestCase):
         cfg = opencode.build_opencode_config(resolved)
         self.assertEqual(cfg["model"], "llama-turbo/qwen36-35b-turbo262k")
 
+    def _minimax_resolved(self) -> dict:
+        return {
+            "backend": "openai_compatible",
+            "provider": "minimax",
+            "real_model": "MiniMax-M3",
+            "api_base_env": "MINIMAX_API_BASE",
+            "api_key_env": "MINIMAX_API_KEY",
+            "default_api_base": "https://api.minimax.io",
+            "context": 1000000,
+            "max_output_tokens": 65536,
+        }
+
+    def test_render_config_minimax_model_is_provider_qualified(self):
+        """A bare model id would not resolve against the custom provider block."""
+        cfg = opencode.build_opencode_config(self._minimax_resolved())
+        self.assertEqual(cfg["model"], "minimax/MiniMax-M3")
+
+    def test_render_config_minimax_base_url_and_credentials(self):
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("MINIMAX_API_BASE", None)
+            cfg = opencode.build_opencode_config(self._minimax_resolved())
+        options = cfg["provider"]["minimax"]["options"]
+        self.assertEqual(options["baseURL"], "https://api.minimax.io/v1")
+        self.assertEqual(options["apiKey"], "{env:MINIMAX_API_KEY}")
+
+    def test_render_config_minimax_limits_from_alias(self):
+        cfg = opencode.build_opencode_config(self._minimax_resolved())
+        limit = cfg["provider"]["minimax"]["models"]["MiniMax-M3"]["limit"]
+        self.assertEqual(limit, {"context": 1000000, "output": 65536})
+
+    def test_render_config_openai_compatible_output_falls_back_to_64k(self):
+        resolved = self._minimax_resolved()
+        del resolved["max_output_tokens"]
+        cfg = opencode.build_opencode_config(resolved)
+        limit = cfg["provider"]["minimax"]["models"]["MiniMax-M3"]["limit"]
+        self.assertEqual(limit["output"], 65536)
+
+    def test_render_config_openai_compatible_without_api_key_env(self):
+        resolved = self._minimax_resolved()
+        del resolved["api_key_env"]
+        cfg = opencode.build_opencode_config(resolved)
+        self.assertNotIn("apiKey", cfg["provider"]["minimax"]["options"])
+
 
 class TestOpenAICompatibleAdapter(unittest.TestCase):
     def test_api_base_from_profile_defaults(self):
