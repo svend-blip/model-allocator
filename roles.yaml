@@ -142,7 +142,7 @@ roles:
     client_aliases:
       claude-code: fable5
 
-  supervisor:
+  supervisor_auto:
     default_alias: fable5
     config_dir: supervisor
     client_aliases:
