@@ -130,9 +130,33 @@ models:
     lifecycle_policy: cloud_noop
     clients:
       opencode: true
+  cloud_minimax:
+    runtime_profile: cloud_minimax
+    # MiniMax's newest coding model; limits mirror models.dev metadata
+    # (context 1,000,000 / output 128,000). Output is capped at 64k here
+    # because OpenCode never needs more in a single reply and the cap keeps
+    # a runaway turn from billing a full 128k completion.
+    real_model: MiniMax-M3
+    context: 1000000
+    max_output_tokens: 65536
+    lifecycle_policy: cloud_noop
+    # claude-code is deliberately absent: the claude_code adapter rejects
+    # provider=minimax (no Anthropic-shaped support at the time of writing).
+    clients:
+      opencode: true
   fable5:
     runtime_profile: cloud_anthropic
     real_model: claude-fable-5
+    context: 200000
+    lifecycle_policy: cloud_noop
+    clients:
+      claude-code: true
+  opus5:
+    runtime_profile: cloud_anthropic
+    # Half of Fable 5's price ($5/$25 vs $10/$50 per MTok) and sufficient for
+    # supervisor runs, which rebuild state from durable files on every wake-up
+    # instead of holding a multi-day context.
+    real_model: claude-opus-5
     context: 200000
     lifecycle_policy: cloud_noop
     clients:

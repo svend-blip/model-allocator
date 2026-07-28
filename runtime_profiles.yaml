@@ -19,6 +19,11 @@ runtime_profiles:
     backend: openai_compatible
     api_base_env: MINIMAX_API_BASE
     api_key_env: MINIMAX_API_KEY
+    # The adapters append /v1 themselves, so the base stops at the host.
+    # MiniMax also exposes an Anthropic-shaped endpoint (/anthropic), but the
+    # claude-code adapter rejects provider=minimax, so only the OpenAI-
+    # compatible path is wired.
+    default_api_base: https://api.minimax.io
     provider: minimax
 
   cloud_openrouter:
