@@ -301,15 +301,30 @@ function renderModels() {
 
 function createValidateHandler(alias) {
     return function () {
+        // Send NO client: the backend validates the alias against the clients
+        // it declares. Hardcoding "opencode" here reported every
+        // claude-code-only alias as broken (fable5, opus5, sonnet5, ...) while
+        // the status column — which uses the alias's own clients — said OK.
         fetch("/api/models/" + encodeURIComponent(alias) + "/validate", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ client: "opencode" }),
+            body: JSON.stringify({}),
         })
             .then(function (resp) { return resp.json(); })
             .then(function (result) {
                 var status = (result.validation_status || "unknown").toLowerCase();
-                alert(alias + ": " + status + (result.errors ? "\n" + result.errors.join("\n") : ""));
+                var lines = [alias + ": " + lbl("lbl_status_" + status, status)];
+                var clients = result.validated_clients || [];
+                if (clients.length) {
+                    lines.push(lbl("lbl_validated_clients", "Validated clients") + ": " + clients.join(", "));
+                }
+                if (result.errors && result.errors.length) {
+                    lines = lines.concat(result.errors);
+                }
+                if (result.warnings && result.warnings.length) {
+                    lines = lines.concat(result.warnings);
+                }
+                alert(lines.join("\n"));
                 renderModels();
             })
             .catch(function (err) {

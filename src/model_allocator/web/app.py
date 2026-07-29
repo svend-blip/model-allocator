@@ -156,6 +156,7 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         ("lbl_status_running", "lbl_status_running", "main", "Running"),
         ("lbl_status_stopped", "lbl_status_stopped", "main", "Stopped"),
         ("lbl_status_validating", "lbl_status_validating", "main", "Validating..."),
+        ("lbl_validated_clients", "lbl_validated_clients", "main", "Validated clients"),
         ("lbl_lang_label", "lbl_lang_label", "main", "Language"),
         ("lbl_pg_setup", "lbl_pg_setup", "main", "Setup"),
         ("lbl_pg_daily", "lbl_pg_daily", "main", "Daily"),
@@ -213,6 +214,7 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         "lbl_status_running": "Kører",
         "lbl_status_stopped": "Stoppet",
         "lbl_status_validating": "Validerer...",
+        "lbl_validated_clients": "Validerede klienter",
         "lbl_lang_label": "Sprog",
         "lbl_pg_setup": "Opsætning",
         "lbl_pg_daily": "Dagligt",
@@ -551,17 +553,87 @@ async def delete_model(alias: str):
         raise HTTPException(status_code=400, detail=str(e))
 
 
+def _enabled_clients(alias: str) -> list[str]:
+    """The clients an alias itself declares as enabled, in declaration order."""
+    definition = load_raw(CONFIG_DIR)["aliases"].get(alias) or {}
+    return [c for c, enabled in (definition.get("clients") or {}).items() if enabled]
+
+
+def _aggregate_validations(per_client: dict[str, dict]) -> dict:
+    """Fold per-client validation results into one response.
+
+    Keeps the single-client response shape (``validation_status``, ``errors``,
+    ``warnings``, ``resolved_*``) so existing callers keep working, and adds
+    ``validated_clients`` plus ``per_client`` for callers that want the detail.
+    Errors and warnings are prefixed with their client, because "incompatible
+    with backend 'anthropic'" is only actionable once you know which client
+    raised it.
+    """
+    statuses = [r.get("validation_status", "UNKNOWN") for r in per_client.values()]
+    if all(s == "OK" for s in statuses):
+        status = "OK"
+    elif any(s == "ERROR" for s in statuses):
+        status = "ERROR"
+    else:
+        status = next((s for s in statuses if s != "OK"), "UNKNOWN")
+
+    base = dict(next(iter(per_client.values())))
+    base["validation_status"] = status
+    base["validated_clients"] = list(per_client)
+    base["client_support"] = {
+        client: result.get("client_support", {})
+        for client, result in per_client.items()
+    }
+    base["errors"] = [
+        f"[{client}] {message}"
+        for client, result in per_client.items()
+        for message in result.get("errors", [])
+    ]
+    base["warnings"] = [
+        f"[{client}] {message}"
+        for client, result in per_client.items()
+        for message in result.get("warnings", [])
+    ]
+    base["per_client"] = per_client
+    return base
+
+
 @app.post("/api/models/{alias}/validate")
 async def validate_model(alias: str, request: Request):
-    """Validate an allocation model for a specific client."""
+    """Validate an allocation model.
+
+    A caller may name a client explicitly (``{"client": "opencode"}``), which
+    is the CLI's behaviour. When no client is named, the alias is validated
+    against the clients IT declares.
+
+    Validating against a fixed client was wrong: a claude-code-only alias
+    (fable5, opus5, sonnet5, imple01-claude, ...) is legitimately incompatible
+    with opencode, so a hardcoded 'opencode' reported a correct configuration
+    as ERROR — 10 of the 19 current aliases. The status column in the model
+    list never showed those errors, because it validates against the alias's
+    own first enabled client, so the button and the table disagreed.
+    """
     body = await request.json() if request.headers.get("content-type") == "application/json" else {}
-    client = body.get("client", "opencode") if isinstance(body, dict) else "opencode"
+    client = (body.get("client") or "").strip() if isinstance(body, dict) else ""
 
     resolver = Resolver(config_dir=CONFIG_DIR)
     validator = Validator(resolver=resolver)
     try:
-        result = validator.validate(alias, client)
-        return result
+        if client:
+            return validator.validate(alias, client)
+
+        clients = _enabled_clients(alias)
+        if not clients:
+            return {
+                "validation_status": "ERROR",
+                "logical_model_alias": alias,
+                "validated_clients": [],
+                "errors": [f"alias '{alias}' has no enabled client to validate against"],
+                "warnings": [],
+            }
+        return _aggregate_validations(
+            {c: validator.validate(alias, c) for c in clients}
+        )
     except Exception as e:
         return {"validation_status": "ERROR", "errors": [str(e)]}
 
