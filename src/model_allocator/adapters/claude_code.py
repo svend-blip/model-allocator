@@ -54,10 +54,22 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
         env["ANTHROPIC_BASE_URL"] = endpoint
         env["ANTHROPIC_AUTH_TOKEN"] = "ollama"
     elif backend == "anthropic":
-        api_key_env = resolved.get("api_key_env", "ANTHROPIC_API_KEY")
-        env["ANTHROPIC_API_KEY"] = f"${api_key_env}"
-        env["ANTHROPIC_BASE_URL"] = ""
-        env["ANTHROPIC_AUTH_TOKEN"] = ""
+        if resolved.get("credentials", "api_key") == "subscription":
+            # Use Claude Code's OWN login (Max/Pro subscription). All three
+            # variables are BLANKED rather than omitted: an inherited
+            # ANTHROPIC_API_KEY would silently move the session onto API
+            # billing, and an inherited ANTHROPIC_BASE_URL would redirect it to
+            # a local endpoint entirely. Empty means absent to Claude Code —
+            # the same assumption the cloud branch below already relies on when
+            # it blanks ANTHROPIC_API_KEY to prevent an Anthropic fallback.
+            env["ANTHROPIC_API_KEY"] = ""
+            env["ANTHROPIC_BASE_URL"] = ""
+            env["ANTHROPIC_AUTH_TOKEN"] = ""
+        else:
+            api_key_env = resolved.get("api_key_env", "ANTHROPIC_API_KEY")
+            env["ANTHROPIC_API_KEY"] = f"${api_key_env}"
+            env["ANTHROPIC_BASE_URL"] = ""
+            env["ANTHROPIC_AUTH_TOKEN"] = ""
     else:
         api_base_env = resolved.get("api_base_env")
         api_key_env = resolved.get("api_key_env")

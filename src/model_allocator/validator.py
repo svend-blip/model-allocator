@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 import os
@@ -178,6 +179,20 @@ class Validator:
 
     def _validate_anthropic(self, resolved: dict, client: str, result: dict) -> None:
         from model_allocator.adapters import anthropic as anthropic_adapter
+
+        if resolved.get("credentials", "api_key") == "subscription":
+            # Subscription mode deliberately has NO API key: the session uses
+            # Claude Code's own login. Checking for ANTHROPIC_API_KEY here would
+            # report the intended configuration as NO_CREDENTIALS, so check for
+            # the login instead.
+            login = Path.home() / ".claude" / ".credentials.json"
+            if not login.is_file():
+                result["warnings"].append(
+                    "Profile uses credentials: subscription but no Claude Code "
+                    f"login was found at {login}; run 'claude login'"
+                )
+                result["client_support"][client] = "NO_CREDENTIALS"
+            return
 
         api_key_env = resolved.get("api_key_env", "ANTHROPIC_API_KEY")
         adapter = anthropic_adapter.AnthropicAdapter(api_key_env=api_key_env)

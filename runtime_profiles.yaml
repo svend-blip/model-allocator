@@ -37,6 +37,12 @@ runtime_profiles:
     backend: anthropic
     api_key_env: ANTHROPIC_API_KEY
     provider: anthropic
+    # "subscription" = use Claude Code's own login (Max/Pro plan).
+    # "api_key"      = bill the API using $api_key_env (the previous behaviour).
+    # Subscription blanks ANTHROPIC_API_KEY / BASE_URL / AUTH_TOKEN so neither an
+    # inherited key nor an inherited base URL can redirect the session away from
+    # the subscription login.
+    credentials: subscription
 
   local_onyx:
     backend: onyx

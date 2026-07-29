@@ -82,6 +82,9 @@ PROFILE_FIELDS: dict[str, object] = {
     "email_env": str,
     "password_env": str,
     "provider": str,
+    # "subscription" (use the client's own login) | "api_key" (bill $api_key_env).
+    # Anthropic profiles default to "api_key" when absent, for compatibility.
+    "credentials": str,
     "gpu": str,
     "server_bin_env": str,
     "model_root_env": str,
