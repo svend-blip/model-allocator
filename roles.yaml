@@ -142,8 +142,18 @@ roles:
     client_aliases:
       claude-code: fable5
 
-  supervisor_auto:
-    default_alias: opus5
+  # Both supervisor roles share the tmux session and config_dir "supervisor"
+  # and differ only in governance file (500 = Human-paired, 501 = autonomous).
+  # The keys must match bridge_roles.role_key exactly or the role falls back to
+  # the direct path and the allocator binding is silently ignored.
+  supervisor:
+    default_alias: sonnet5
     config_dir: supervisor
     client_aliases:
-      claude-code: opus5
+      claude-code: sonnet5
+
+  supervisor_auto:
+    default_alias: sonnet5
+    config_dir: supervisor
+    client_aliases:
+      claude-code: sonnet5

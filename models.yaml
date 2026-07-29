@@ -161,3 +161,14 @@ models:
     lifecycle_policy: cloud_noop
     clients:
       claude-code: true
+  sonnet5:
+    runtime_profile: cloud_anthropic
+    # The supervisor roles' model as of 2026-07-29. The stateless-per-wake-up
+    # design of 501_SUPERVISOR_AUTONOMOUS.md is what makes this viable: each
+    # wake-up rebuilds state from GOAL.md, RUN-LEDGER.md and BACKLOG.md and
+    # then acts once, so no wake-up needs to hold a long-running context.
+    real_model: claude-sonnet-5
+    context: 200000
+    lifecycle_policy: cloud_noop
+    clients:
+      claude-code: true
