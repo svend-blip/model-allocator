@@ -154,6 +154,29 @@ roles:
 
   supervisor_auto:
     default_alias: sonnet5
-    config_dir: supervisor
+    config_dir: supervisor_auto
     client_aliases:
       claude-code: sonnet5
+
+  # ── supervised_review (452/453/454) ────────────────────────
+  # Distinct from strict_review's imple01/review01/review02 so the two
+  # flows can run concurrently and be tuned independently. Aliases start
+  # identical to the roles they were split from — this split changed WHO
+  # is dispatched, not WHAT model runs.
+  imple01sup:
+    default_alias: cloud_minimax
+    config_dir: imple01sup
+    client_aliases:
+      opencode: cloud_minimax
+
+  review01sup:
+    default_alias: review01-local
+    config_dir: review01sup
+    client_aliases:
+      opencode: review01-local
+
+  review02sup:
+    default_alias: review02-local
+    config_dir: review02sup
+    client_aliases:
+      opencode: review02-local
