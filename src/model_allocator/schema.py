@@ -30,7 +30,7 @@ class Issue:
     message: str
 
 
-BACKENDS = ("ollama", "llama_cpp", "openai_compatible", "onyx", "anthropic")
+BACKENDS = ("ollama", "llama_cpp", "openai_compatible", "onyx", "anthropic", "sglang")
 
 COMMON_ALIAS_FIELDS: dict[str, object] = {
     "runtime_profile": str,
@@ -74,6 +74,20 @@ LLAMACPP_ALIAS_FIELDS: dict[str, object] = {
     "tensor_split": str,
 }
 
+SGLANG_ALIAS_FIELDS: dict[str, object] = {
+    "model_path": str,
+    "served_model_name": str,
+    "port": int,
+    "host": str,
+    "venv": str,
+    "context": int,
+    "mem_fraction_static": (int, float),
+    "max_running_requests": int,
+    "tool_call_parser": str,
+    "enable_cache_report": bool,
+    "max_output_tokens": int,
+}
+
 PROFILE_FIELDS: dict[str, object] = {
     "backend": str,
     "api_base_env": str,
@@ -93,6 +107,8 @@ PROFILE_FIELDS: dict[str, object] = {
     "default_gpu_layers": int,
     "host": str,
     "capabilities": list,
+    "venv": str,
+    "default_host": str,
     # Pre-seeded for in-flight plans
     "ssh_host": str,
     "remote_workdir": str,
@@ -174,6 +190,8 @@ def validate_alias(alias_name: str, definition: dict, profiles: dict) -> list[Is
     allow_list = dict(COMMON_ALIAS_FIELDS)
     if backend == "llama_cpp":
         allow_list.update(LLAMACPP_ALIAS_FIELDS)
+    elif backend == "sglang":
+        allow_list.update(SGLANG_ALIAS_FIELDS)
     # Profile fields are overridable on alias — add them
     for key, val_type in PROFILE_FIELDS.items():
         if key not in allow_list:
@@ -201,6 +219,10 @@ def validate_alias(alias_name: str, definition: dict, profiles: dict) -> list[Is
         if not definition.get("model_path") and not definition.get("model_name"):
             issues.append(Issue("error", "model_path",
                                 "llama_cpp backend requires model_path or model_name"))
+    elif backend == "sglang":
+        if not definition.get("model_path"):
+            issues.append(Issue("error", "model_path",
+                                "sglang backend requires model_path"))
 
     return issues
 
