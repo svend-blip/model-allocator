@@ -189,7 +189,6 @@ models:
     jinja: true
     load_mode: none
     parallel: 1
-    no_mmap: true
     clients:
       claude-code: true
 
