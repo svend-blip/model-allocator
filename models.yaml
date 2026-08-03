@@ -186,6 +186,8 @@ models:
     gpu_layers: 99
     reasoning: "on"
     reasoning_budget: 2048
+    jinja: true
+    load_mode: none
     parallel: 1
     no_mmap: true
     clients:

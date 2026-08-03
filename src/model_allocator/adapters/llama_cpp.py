@@ -106,6 +106,12 @@ class LlamaCppAdapter:
             argv += ["--flash-attn", str(flags["flash_attn"])]
         if "reasoning" in flags:
             argv += ["--reasoning", str(flags["reasoning"])]
+        if "reasoning_budget" in flags:
+            argv += ["--reasoning-budget", str(flags["reasoning_budget"])]
+        if flags.get("jinja"):
+            argv.append("--jinja")
+        if "load_mode" in flags:
+            argv += ["--load-mode", str(flags["load_mode"])]
         if flags.get("no_mmap"):
             argv.append("--no-mmap")
         if "gpu_layers" in flags:
