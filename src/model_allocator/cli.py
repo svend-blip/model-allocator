@@ -15,6 +15,7 @@ from model_allocator.doctor_cli import cmd_doctor
 from model_allocator.adapters import anthropic as anthropic_adapter
 from model_allocator.adapters import claude_code
 from model_allocator.adapters import llama_cpp as llama_cpp_adapter
+from model_allocator.adapters import sglang as sglang_adapter
 from model_allocator.adapters import opencode
 from model_allocator.adapters import ollama as ollama_adapter
 from model_allocator.adapters import openai_compatible as openai_adapter
@@ -57,6 +58,8 @@ def _get_backend_adapter(resolved: dict):
         )
     if backend == "llama_cpp":
         return llama_cpp_adapter.LlamaCppAdapter(resolved)
+    if backend == "sglang":
+        return sglang_adapter.SGLangAdapter(resolved)
     if backend == "onyx":
         return onyx_adapter.OnyxAdapter.from_resolved(resolved)
     if backend == "anthropic":
@@ -159,13 +162,15 @@ def cmd_status(args: argparse.Namespace) -> int:
         report.update(adapter.status())
     elif backend == "llama_cpp":
         report.update(adapter.status())
+    elif backend == "sglang":
+        report.update(adapter.status())
     elif backend == "anthropic":
         report.update(adapter.status())
 
     print(json.dumps(report, indent=2, default=str))
     if backend == "ollama" and not report["reachable"]["reachable"]:
         return EXIT_WARNING
-    if backend in ("openai_compatible", "llama_cpp") and not report.get("running", False):
+    if backend in ("openai_compatible", "llama_cpp", "sglang") and not report.get("running", False):
         return EXIT_WARNING
     if backend == "anthropic" and not report.get("credentials_present", False):
         return EXIT_WARNING
@@ -267,6 +272,8 @@ def cmd_start(args: argparse.Namespace) -> int:
         result = adapter.start()
     elif backend == "llama_cpp":
         result = adapter.start(timeout=args.timeout)
+    elif backend == "sglang":
+        result = adapter.start(timeout=args.timeout)
     elif backend == "anthropic":
         result = adapter.start()
     else:
@@ -299,6 +306,8 @@ def cmd_stop(args: argparse.Namespace) -> int:
     elif backend == "openai_compatible":
         result = adapter.stop()
     elif backend == "llama_cpp":
+        result = adapter.stop(timeout=args.timeout)
+    elif backend == "sglang":
         result = adapter.stop(timeout=args.timeout)
     elif backend == "anthropic":
         result = adapter.stop()

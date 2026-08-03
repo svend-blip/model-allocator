@@ -77,6 +77,10 @@ def _model_arg(resolved: dict) -> str:
         provider_name = resolved.get("opencode_provider_name") or provider or "llama-local"
         model_id = resolved.get("opencode_model_id") or real_model or "model"
         return f"{provider_name}/{model_id}"
+    if backend == "sglang":
+        provider_name = resolved.get("opencode_provider_name") or provider or "sglang-local"
+        model_id = resolved.get("opencode_model_id") or resolved.get("served_model_name") or real_model or "model"
+        return f"{provider_name}/{model_id}"
     return real_model
 
 
@@ -129,6 +133,35 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
                             "name": resolved.get("display_name") or model_id,
                         },
                     },
+                },
+            },
+        }
+
+    if backend == "sglang":
+        provider_name = resolved.get("opencode_provider_name") or provider or "sglang-local"
+        model_id = resolved.get("opencode_model_id") or resolved.get("served_model_name") or resolved.get("real_model") or "model"
+        host = resolved.get("host", resolved.get("default_host", "127.0.0.1"))
+        port = resolved.get("port", resolved.get("default_port", 30000))
+        model_entry: dict[str, Any] = {
+            "name": resolved.get("display_name") or model_id,
+        }
+        context = resolved.get("context")
+        if context:
+            model_entry["limit"] = {
+                "context": int(context),
+                "output": int(resolved.get("max_output_tokens") or min(int(context), 8192)),
+            }
+        return {
+            "model": model_field,
+            "provider": {
+                provider_name: {
+                    "npm": "@ai-sdk/openai-compatible",
+                    "name": provider_name,
+                    "options": {
+                        "baseURL": f"http://{host}:{port}/v1",
+                        "apiKey": "dummy",
+                    },
+                    "models": {model_id: model_entry},
                 },
             },
         }

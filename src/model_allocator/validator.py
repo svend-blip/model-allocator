@@ -11,6 +11,7 @@ import os
 from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import ollama as ollama_adapter
 from model_allocator.adapters import openai_compatible as openai_adapter
+from model_allocator.adapters import sglang as sglang_adapter
 from model_allocator.resolver import ResolutionError, Resolver
 
 
@@ -70,6 +71,8 @@ class Validator:
             self._validate_openai_compatible(resolved, client, result)
         elif backend == "llama_cpp":
             self._validate_llama_cpp(resolved, client, result)
+        elif backend == "sglang":
+            self._validate_sglang(resolved, client, result)
         elif backend == "onyx":
             self._validate_onyx(resolved, client, result)
         elif backend == "anthropic":
@@ -110,6 +113,10 @@ class Validator:
             return
         if backend == "llama_cpp" and client != "opencode":
             result["errors"].append(f"Client '{client}' is not supported for llama.cpp backend")
+            result["validation_status"] = "ERROR"
+            return
+        if backend == "sglang" and client != "opencode":
+            result["errors"].append(f"Client '{client}' is not supported for sglang backend")
             result["validation_status"] = "ERROR"
             return
         if backend == "anthropic" and client != "claude-code":
@@ -219,6 +226,15 @@ class Validator:
         except llama_cpp_adapter.LlamaCppAdapterError as exc:
             result["warnings"].append(str(exc))
             result["client_support"][client] = "UNREACHABLE"
+
+    def _validate_sglang(self, resolved: dict, client: str, result: dict) -> None:
+        model_path = resolved.get("model_path", "")
+        if not model_path:
+            result["warnings"].append("model_path not configured for SGLang alias")
+        venv = resolved.get("venv", "")
+        if venv and not os.path.isdir(venv):
+            result["warnings"].append(f"SGLang venv not found: {venv}")
+        result["client_support"][client] = "OK"
 
     def format_output(self, result: dict) -> str:
         lines = [result["validation_status"]]
