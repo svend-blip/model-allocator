@@ -223,6 +223,25 @@ def cmd_run(args: argparse.Namespace) -> int:
         print(f"ERROR: client '{args.client}' is not supported by alias '{resolved.get('alias')}'", file=sys.stderr)
         return EXIT_ERROR
 
+    # Auto-start backend servers that need to be running before the client connects.
+    # Ollama auto-loads models on request; cloud backends have no server to start.
+    # llama.cpp and SGLang are managed servers — start them if not already running.
+    backend = resolved.get("backend")
+    if backend in ("llama_cpp", "sglang"):
+        try:
+            adapter = _get_backend_adapter(resolved)
+        except ValueError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return EXIT_ERROR
+        status = adapter.status()
+        if not status.get("running"):
+            print(f"  Starting {backend} server for alias '{resolved.get('alias')}'...", file=sys.stderr)
+            start_result = adapter.start()
+            if not start_result.get("started"):
+                print(f"ERROR: failed to start {backend} server: {start_result.get('error')}", file=sys.stderr)
+                return EXIT_ERROR
+            print(f"  {backend} server ready on port {start_result.get('port')}", file=sys.stderr)
+
     try:
         # Apply CLI overrides before building command
         if getattr(args, "max_output_tokens", None) is not None:
