@@ -194,12 +194,12 @@ models:
     runtime_profile: local_sglang_cuda0
     real_model: Qwen3-Coder-30B-A3B-Instruct
     served_model_name: qwen-shared
-    model_path: /home/svend/models/sglang/Qwen3-Coder-30B-A3B-Instruct-AWQ
+    model_path: /home/svend/models/sglang/Qwen3-Coder-30B-A3B-Instruct-AWQ-4bit
     context: 32768
     lifecycle_policy: persistent
     max_output_tokens: 8192
     mem_fraction_static: 0.82
     max_running_requests: 2
-    tool_call_parser: qwen
+    tool_call_parser: qwen3_coder
     clients:
       opencode: true
