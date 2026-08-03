@@ -403,6 +403,8 @@ model-allocator/
 | V5A | `invoke()` capability + InvokeResult envelope + ONYX backend adapter + capability-as-data | `17bfc58` |
 | V5B | Headless runner client adapter (API runtimes as bridge roles, zero bridge changes) | `74ba425` |
 | V5C | onyx-mcp: `mcp-serve` with onyx_answer/onyx_status tools (optional `mcp` extra) | `8c971a5` |
+| V5.1 | Claude Code env equivalence: max_output_tokens, adaptive thinking, active model, binary+extra-args, `--max-output-tokens` passthrough | `e08d825` |
+| V5.2 | SGLang adapter + Laguna (llama.cpp) config + `llama_SG` flow support: auto-start in `run`, `--no-auto-start`, `server_bin_path`, `--jinja`/`--load-mode`/`--reasoning-budget` flags, process-group kill for SGLang, `ANTHROPIC_API_KEY` blanking in Ollama/llama_cpp backends | `6ed84b3` |
 
 ### Live validation
 
@@ -412,6 +414,13 @@ model-allocator/
 - **llama.cpp** (TurboQuant) → full start/status/stop lifecycle validated locally
   with real `--n-cpu-moe 26 --cache-type-k turbo4 --cache-type-v turbo3
   --flash-attn on --reasoning off --no-mmap` argv (V2.1 + local TurboQuant build).
+- **llama.cpp** (Laguna) → `laguna-local` alias with `--jinja --load-mode none
+  --reasoning-budget 2048` flags, `server_bin_path` for custom build, Claude Code
+  client (V5.2).
+- **SGLang** (Qwen3-Coder-30B-A3B-Instruct-AWQ-4bit) → `qwen-shared-sglang` alias,
+  persistent lifecycle, `qwen3_coder` tool-call parser, OpenCode client via
+  `@ai-sdk/openai-compatible` provider. Live-validated: health OK, basic chat OK,
+  tool-call OK (V5.2).
 
 ---
 
@@ -421,8 +430,8 @@ model-allocator/
   llama-server (status/stop read only the adapter's own PID file). It manages
   servers it starts itself (validated).
 - `CLAUDE_CODE_MAX_OUTPUT_TOKENS` + absolute binary path from the Father Machine
-  Profile are not read by the allocator (minor env-equivalence gap; model
-  selection works via the opencode.json `model` field regardless).
+  Profile are now read by the allocator (fixed in V5.1 via `max_output_tokens`,
+  `claude_binary`, `claude_extra_args` config fields).
 - Optional FastAPI service (scope §16.4) is deferred — the Father-proxy
   approach is used instead.
 - ONYX Lite has no connectors/RAG indexing — `onyx_answer` works, a
@@ -432,3 +441,9 @@ model-allocator/
 - The headless runner is a transport, not an agent: roles that must write
   bridge convention files need that handled via bridge step configuration,
   not prompt parsing in the runner.
+- SGLang adapter requires the model to be downloaded and the venv to be
+  set up before first use (`/home/svend/venvs/sglang`). The adapter does
+  not auto-install SGLang or download models.
+- Only one large model (Laguna 23.5 GB or SGLang/Qwen 17 GB) fits in the
+  RTX 5090's 32 GB VRAM at a time. The `llama_SG` flow handles this via
+  pre/post-dispatch scripts that stop one server before starting the other.
