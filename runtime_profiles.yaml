@@ -44,6 +44,21 @@ runtime_profiles:
     # the subscription login.
     credentials: subscription
 
+  local_llamacpp_laguna:
+    backend: llama_cpp
+    server_bin_env: LLAMA_SERVER_BIN
+    model_root_env: MODEL_ROOT_GGUF
+    default_port: 8080
+    default_host: 127.0.0.1
+    gpu: cuda0
+
+  local_sglang_cuda0:
+    backend: sglang
+    venv: /home/svend/venvs/sglang
+    default_port: 30000
+    default_host: 127.0.0.1
+    gpu: cuda0
+
   local_onyx:
     backend: onyx
     api_base_env: ONYX_API_BASE

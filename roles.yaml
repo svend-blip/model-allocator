@@ -180,3 +180,21 @@ roles:
     config_dir: review02sup
     client_aliases:
       opencode: review02-local
+
+  supervisor01_llama:
+    default_alias: laguna-local
+    config_dir: supervisor01_llama
+    client_aliases:
+      claude-code: laguna-local
+
+  imple01SG:
+    default_alias: qwen-shared-sglang
+    config_dir: imple01SG
+    client_aliases:
+      opencode: qwen-shared-sglang
+
+  review01SG:
+    default_alias: qwen-shared-sglang
+    config_dir: review01SG
+    client_aliases:
+      opencode: qwen-shared-sglang
