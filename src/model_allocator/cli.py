@@ -749,6 +749,49 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# ── Web-UI helpers (called from web/app.py) ──────────────────
+
+class _AllocatorResult:
+    """Minimal subprocess-like result for web UI callers."""
+    def __init__(self, returncode: int, stderr: str = ""):
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+def _run_allocator_start(alias: str, config_dir: str, timeout: int = 180) -> _AllocatorResult:
+    """Start a model runtime. Called from the web UI."""
+    import io
+    import contextlib
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            code = main([
+                "--config-dir", config_dir,
+                "start", "--alias", alias,
+                "--timeout", str(timeout),
+            ])
+        return _AllocatorResult(code, buf.getvalue())
+    except SystemExit as exc:
+        return _AllocatorResult(exc.code or 1, buf.getvalue())
+
+
+def _run_allocator_stop(alias: str, config_dir: str, timeout: int = 45) -> _AllocatorResult:
+    """Stop a model runtime. Called from the web UI."""
+    import io
+    import contextlib
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            code = main([
+                "--config-dir", config_dir,
+                "stop", "--alias", alias,
+                "--timeout", str(timeout),
+            ])
+        return _AllocatorResult(code, buf.getvalue())
+    except SystemExit as exc:
+        return _AllocatorResult(exc.code or 1, buf.getvalue())
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
