@@ -53,6 +53,7 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
         endpoint = os.environ.get(api_base_env, "") or resolved.get("default_api_base", "http://127.0.0.1:11434")
         env["ANTHROPIC_BASE_URL"] = endpoint
         env["ANTHROPIC_AUTH_TOKEN"] = "ollama"
+        env["ANTHROPIC_API_KEY"] = ""
     elif backend == "anthropic":
         if resolved.get("credentials", "api_key") == "subscription":
             # Use Claude Code's OWN login (Max/Pro subscription). All three

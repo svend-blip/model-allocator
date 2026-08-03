@@ -139,7 +139,7 @@ class TestClaudeCodeAdapter(unittest.TestCase):
         self.assertEqual(cmd["argv"], ["/usr/bin/claude", "--model", "qwen3-coder:30b-256k"])
         self.assertEqual(cmd["env"]["ANTHROPIC_BASE_URL"], "http://127.0.0.1:11434")
         self.assertEqual(cmd["env"]["ANTHROPIC_AUTH_TOKEN"], "ollama")
-        self.assertNotIn("ANTHROPIC_API_KEY", cmd["env"])
+        self.assertEqual(cmd["env"]["ANTHROPIC_API_KEY"], "")
 
     @patch("model_allocator.adapters.claude_code.shutil.which", side_effect=_fake_which)
     def test_openrouter_backend(self, _mock):
