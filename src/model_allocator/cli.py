@@ -226,21 +226,23 @@ def cmd_run(args: argparse.Namespace) -> int:
     # Auto-start backend servers that need to be running before the client connects.
     # Ollama auto-loads models on request; cloud backends have no server to start.
     # llama.cpp and SGLang are managed servers — start them if not already running.
-    backend = resolved.get("backend")
-    if backend in ("llama_cpp", "sglang"):
-        try:
-            adapter = _get_backend_adapter(resolved)
-        except ValueError as exc:
-            print(f"ERROR: {exc}", file=sys.stderr)
-            return EXIT_ERROR
-        status = adapter.status()
-        if not status.get("running"):
-            print(f"  Starting {backend} server for alias '{resolved.get('alias')}'...", file=sys.stderr)
-            start_result = adapter.start()
-            if not start_result.get("started"):
-                print(f"ERROR: failed to start {backend} server: {start_result.get('error')}", file=sys.stderr)
+    # --no-auto-start skips this (used when pre_dispatch_script handles server lifecycle).
+    if not getattr(args, "no_auto_start", False):
+        backend = resolved.get("backend")
+        if backend in ("llama_cpp", "sglang"):
+            try:
+                adapter = _get_backend_adapter(resolved)
+            except ValueError as exc:
+                print(f"ERROR: {exc}", file=sys.stderr)
                 return EXIT_ERROR
-            print(f"  {backend} server ready on port {start_result.get('port')}", file=sys.stderr)
+            status = adapter.status()
+            if not status.get("running"):
+                print(f"  Starting {backend} server for alias '{resolved.get('alias')}'...", file=sys.stderr)
+                start_result = adapter.start()
+                if not start_result.get("started"):
+                    print(f"ERROR: failed to start {backend} server: {start_result.get('error')}", file=sys.stderr)
+                    return EXIT_ERROR
+                print(f"  {backend} server ready on port {start_result.get('port')}", file=sys.stderr)
 
     try:
         # Apply CLI overrides before building command
@@ -679,6 +681,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--role", required=True, help="Role key")
     p_run.add_argument("--client", required=True, help="Client key (e.g. opencode, claude-code)")
     p_run.add_argument("--max-output-tokens", type=int, default=None, help="Override max_output_tokens for Claude Code roles")
+    p_run.add_argument("--no-auto-start", action="store_true", default=False, help="Skip auto-starting the backend server")
     p_run.set_defaults(func=cmd_run)
 
     p_start = sub.add_parser("start", help="Warm up the backend runtime for an alias")
