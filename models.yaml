@@ -176,6 +176,7 @@ models:
   laguna-local:
     runtime_profile: local_llamacpp_laguna
     real_model: Laguna-S-2.1-IQ4_XS
+    server_bin_path: /home/svend/llama.cpp-laguna/build/bin/llama-server
     model_path: /home/svend/models/Laguna-S-2.1-IQ4_XS/Laguna-S-2.1-IQ4_XS/Laguna-S-2.1-IQ4_XS-00001-of-00002.gguf
     context: 147456
     lifecycle_policy: stop_after_step

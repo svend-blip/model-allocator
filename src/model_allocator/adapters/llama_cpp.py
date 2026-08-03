@@ -47,7 +47,13 @@ class LlamaCppAdapter:
             return int(sock.getsockname()[1])
 
     def server_bin(self) -> str:
-        """Resolve llama-server binary from env-var names only."""
+        """Resolve llama-server binary from config, env-var names, or PATH."""
+        # Direct path from config takes precedence
+        binary = self.resolved.get("server_bin_path", "")
+        if binary:
+            if not (os.path.isfile(binary) and os.access(binary, os.X_OK)):
+                raise LlamaCppAdapterError(f"llama-server binary not found: {binary}")
+            return binary
         bin_env = self.resolved.get("server_bin_env")
         binary = os.environ.get(bin_env, "") if bin_env else ""
         if not binary:
