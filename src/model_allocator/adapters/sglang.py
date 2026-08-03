@@ -154,11 +154,16 @@ class SGLangAdapter:
         }
 
     @staticmethod
+    @staticmethod
     def _kill_pid(pid: int, timeout: int = 30) -> dict:
+        # SGLang spawns child processes (scheduler, detokenizer) that must
+        # also be killed. Try the process group first, then fall back to the
+        # single PID.
         try:
-            os.kill(pid, signal.SIGTERM)
+            pgid = os.getpgid(pid)
+            os.killpg(pgid, signal.SIGTERM)
         except (OSError, ProcessLookupError):
-            return {"stopped": True, "error": None}
+            pass
 
         start_ts = time.time()
         while time.time() - start_ts < timeout:
@@ -169,7 +174,8 @@ class SGLangAdapter:
             time.sleep(0.2)
 
         try:
-            os.kill(pid, signal.SIGKILL)
+            pgid = os.getpgid(pid)
+            os.killpg(pgid, signal.SIGKILL)
         except (OSError, ProcessLookupError):
             pass
         return {"stopped": True, "error": None}
