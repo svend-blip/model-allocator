@@ -447,3 +447,40 @@ model-allocator/
 - Only one large model (Laguna 23.5 GB or SGLang/Qwen 17 GB) fits in the
   RTX 5090's 32 GB VRAM at a time. The `llama_SG` flow handles this via
   pre/post-dispatch scripts that stop one server before starting the other.
+
+## OpenCode external-directory permissions
+
+OpenCode role sessions may stall on "Allow edit" dialogs when accessing
+directories outside the session's cwd (e.g. `/home/svend/flows/`). The fix
+is a `permission.external_directory` block in the role's `opencode.json`:
+
+```json
+"permission": {
+  "external_directory": {
+    "/home/svend/flows/*": "allow",
+    "/home/svend/flows/**": "allow",
+    "/home/svend/DPMtF-WebUI/docs/*": "allow",
+    "/home/svend/DPMtF-WebUI/docs/**": "allow"
+  }
+}
+```
+
+This block survives `render-config` because the merge preserves keys not
+in the rendered output (`model` and `provider` only). The global
+`~/.config/opencode/opencode.json` should also carry this block as a
+fallback — OpenCode merges the global config under `OPENCODE_CONFIG`.
+
+All OpenCode roles under `~/.config/opencode-roles/` should have this
+block. Run this to add it to any role missing it:
+
+```bash
+for dir in ~/.config/opencode-roles/*/; do
+  file="${dir}opencode.json"
+  [ -f "$file" ] && python3 -c "
+import json; cfg=json.load(open('$file'))
+if 'permission' not in cfg:
+    cfg['permission']={'external_directory':{'/home/svend/flows/*':'allow','/home/svend/flows/**':'allow','/home/svend/DPMtF-WebUI/docs/*':'allow','/home/svend/DPMtF-WebUI/docs/**':'allow'}}
+    json.dump(cfg, open('$file','w'), indent=2)
+" && echo "  $(basename $dir): added" || echo "  $(basename $dir): already present"
+done
+```
