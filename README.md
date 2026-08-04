@@ -451,16 +451,24 @@ model-allocator/
 ## OpenCode external-directory permissions
 
 OpenCode role sessions may stall on "Allow edit" dialogs when accessing
-directories outside the session's cwd (e.g. `/home/svend/flows/`). The fix
-is a `permission.external_directory` block in the role's `opencode.json`:
+directories outside the session's cwd. Two directories need allowlisting:
+
+| Directory | Configured by | Purpose |
+|-----------|--------------|---------|
+| `{DPMTF_BRIDGE_DIR}` | `.env` / `dpmtf.ini` (default: `~/flows`) | Handoffs, results, verdicts, run artifacts |
+| `{project_root}/docs/` | `config.get_project_root()` (Father repo) | Governance templates read by all roles |
+
+The fix is a `permission.external_directory` block in each role's
+`opencode.json`. Replace `{BRIDGE_DIR}` and `{FATHER}/docs` with the
+actual paths from your configuration:
 
 ```json
 "permission": {
   "external_directory": {
-    "/home/svend/flows/*": "allow",
-    "/home/svend/flows/**": "allow",
-    "/home/svend/DPMtF-WebUI/docs/*": "allow",
-    "/home/svend/DPMtF-WebUI/docs/**": "allow"
+    "{BRIDGE_DIR}/*": "allow",
+    "{BRIDGE_DIR}/**": "allow",
+    "{FATHER}/docs/*": "allow",
+    "{FATHER}/docs/**": "allow"
   }
 }
 ```
@@ -471,16 +479,28 @@ in the rendered output (`model` and `provider` only). The global
 fallback — OpenCode merges the global config under `OPENCODE_CONFIG`.
 
 All OpenCode roles under `~/.config/opencode-roles/` should have this
-block. Run this to add it to any role missing it:
+block. To add it, resolve the paths from your config first:
 
 ```bash
+# Resolve paths from config
+BRIDGE_DIR="${DPMTF_BRIDGE_DIR:-$HOME/flows}"
+FATHER_DOCS="$(python3 -c "import sys; sys.path.insert(0,'.'); import config; print(config.get_project_root())")/docs"
+
+# Add permission block to all role configs
 for dir in ~/.config/opencode-roles/*/; do
   file="${dir}opencode.json"
   [ -f "$file" ] && python3 -c "
-import json; cfg=json.load(open('$file'))
+import json, os
+cfg = json.load(open('$file'))
 if 'permission' not in cfg:
-    cfg['permission']={'external_directory':{'/home/svend/flows/*':'allow','/home/svend/flows/**':'allow','/home/svend/DPMtF-WebUI/docs/*':'allow','/home/svend/DPMtF-WebUI/docs/**':'allow'}}
+    bd = os.environ.get('BRIDGE_DIR', os.path.expanduser('~/flows'))
+    fd = os.environ.get('FATHER_DOCS', '')
+    cfg['permission'] = {'external_directory': {
+        bd + '/*': 'allow', bd + '/**': 'allow',
+        fd + '/*': 'allow', fd + '/**': 'allow'
+    }}
     json.dump(cfg, open('$file','w'), indent=2)
+    print('  added')
 " && echo "  $(basename $dir): added" || echo "  $(basename $dir): already present"
 done
 ```
