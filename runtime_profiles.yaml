@@ -54,7 +54,7 @@ runtime_profiles:
 
   local_sglang_cuda0:
     backend: sglang
-    venv: /home/svend/venvs/sglang
+    venv: ${SGLANG_VENV_PATH}
     default_port: 30000
     default_host: 127.0.0.1
     gpu: cuda0

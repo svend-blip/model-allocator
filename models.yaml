@@ -1,9 +1,26 @@
 models:
   imple-fast:
     runtime_profile: local_ollama_cuda0
-    real_model: qwen36-27b-q4km:latest
-    context: 131072
+    # Same blob as qwen36-27b-q4km:latest (both ID a50eda8ed977); this is
+    # the canonical tag.
+    real_model: qwen3.6:27b-q4_K_M
+    # 65536, not 131072. At 128k the KV cache for a 27B lands somewhere
+    # around 8-15 GB on top of ~17 GB of weights — 25-32 GB against a 32.6 GB
+    # card, so the load tips over the edge and Ollama silently puts the
+    # remainder on the CPU. That failure reports success and costs a factor
+    # of ten in speed: observed 2026-08-05 with qwen3-coder:30b-256k at 94%
+    # CPU. An implementer works on one file from one handoff; 64k is ample.
+    context: 65536
     lifecycle_policy: persistent
+    # Set explicitly rather than inheriting Claude Code's 32000 default. That
+    # default is what killed a supervisor turn on 2026-08-05 — 21 minutes of
+    # generation lost to a ceiling nobody had chosen. A limit should be a
+    # decision, not something the harness picks for you.
+    max_output_tokens: 32768
+    claude_extra_args:
+      - "--autocompact"
+      - "auto"
+      - "--dangerously-skip-permissions"
     clients:
       opencode: true
       claude-code: true
@@ -113,8 +130,17 @@ models:
     real_model: qwen3.6:35b-a3b-64k
     context: 65536
     lifecycle_policy: stop_after_step
+    max_output_tokens: 32768
+    claude_extra_args:
+      - "--autocompact"
+      - "auto"
+      - "--dangerously-skip-permissions"
     clients:
       opencode: true
+      # Added 2026-08-05 for review01SG in llama_SG, which runs Claude Code.
+      # The five roles already on this alias are unaffected — they use
+      # opencode, and claude_extra_args only applies to the claude-code client.
+      claude-code: true
   archi-pay:
     runtime_profile: cloud_openrouter
     real_model: z-ai/glm-5.2
@@ -176,8 +202,8 @@ models:
   laguna-local:
     runtime_profile: local_llamacpp_laguna
     real_model: Laguna-S-2.1-IQ4_XS
-    server_bin_path: /home/svend/llama.cpp-laguna/build/bin/llama-server
-    model_path: /home/svend/models/Laguna-S-2.1-IQ4_XS/Laguna-S-2.1-IQ4_XS/Laguna-S-2.1-IQ4_XS-00001-of-00002.gguf
+    server_bin_path: ${LLAMA_SERVER_BIN}
+    model_path: ${MODEL_ROOT_GGUF}/Laguna-S-2.1-IQ4_XS/Laguna-S-2.1-IQ4_XS/Laguna-S-2.1-IQ4_XS-00001-of-00002.gguf
     context: 262144
     lifecycle_policy: stop_after_step
     n_cpu_moe: 31
@@ -188,10 +214,19 @@ models:
     reasoning_budget: 2048
     jinja: true
     load_mode: none
+    # One slot, full context. Three slots looked like the obvious choice for
+    # three roles, but llama.cpp splits --ctx-size across them: each role got
+    # 87k instead of 262144, and the supervisor's cold-start procedure — which
+    # reads GOAL, ledger, backlog and two governance files before acting —
+    # started losing the thread and ran a single response past Claude Code's
+    # 32000 output-token ceiling. The roles never run concurrently, so the
+    # only cost of one slot is re-processing the prompt when the active role
+    # changes, a few times per handoff cycle. Context is worth more here.
     parallel: 1
     claude_extra_args:
       - "--autocompact"
       - "auto"
+      - "--dangerously-skip-permissions"
     clients:
       claude-code: true
 
@@ -199,7 +234,7 @@ models:
     runtime_profile: local_sglang_cuda0
     real_model: Qwen3-Coder-30B-A3B-Instruct
     served_model_name: qwen-shared
-    model_path: /home/svend/models/sglang/Qwen3-Coder-30B-A3B-Instruct-AWQ-4bit
+    model_path: ${MODEL_ROOT_SGLANG}/Qwen3-Coder-30B-A3B-Instruct-AWQ-4bit
     context: 32768
     lifecycle_policy: persistent
     max_output_tokens: 8192

@@ -8,8 +8,8 @@ runtime_profiles:
   # local_llamacpp_cuda0 is illustrative; paths below are for documentation only.
   local_llamacpp_cuda0:
     backend: llama_cpp
-    server_bin: /home/svend/bin/llama-server
-    model_root: /home/svend/ai-data/models/gguf
+    server_bin: ${LLAMA_SERVER_BIN}
+    model_root: ${MODEL_ROOT_GGUF}
     default_port: 8080
     default_gpu_layers: 99
     default_ctx: 131072

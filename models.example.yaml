@@ -46,7 +46,7 @@ models:
   llama-test:
     runtime_profile: local_llamacpp_cuda0
     # In production use ${MODEL_ROOT_GGUF}/test.gguf; the path below is illustrative.
-    model_path: /home/svend/ai-data/models/gguf/test.gguf
+    model_path: ${MODEL_ROOT_GGUF}/test.gguf
     context: 262144
     parallel: 1
     n_cpu_moe: 26

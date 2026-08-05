@@ -187,14 +187,28 @@ roles:
     client_aliases:
       claude-code: laguna-local
 
+  # All three llama_SG roles share one local model on one client. That is
+  # the point: two models on a single 32 GB GPU forced a swap on every
+  # handoff, and the swap machinery — leases, VRAM waits, orphaned servers
+  # — caused most of this flow's failures on 2026-08-05. One model, no swap.
+  # The implementer's work is mechanical — read a handoff, edit a file, run
+  # the checks — so it is bought speed, not context. Laguna took 19-21
+  # minutes per turn at ~11 tokens/second; a 27B at q4_K_M fully on GPU
+  # should be several times that. The client stays claude-code so the role
+  # keeps the permission-bypass and avoids OpenCode's dialogs.
   imple01SG:
-    default_alias: qwen-shared-sglang
+    default_alias: imple-fast
     config_dir: imple01SG
     client_aliases:
-      opencode: qwen-shared-sglang
+      claude-code: imple-fast
 
+  # The reviewer judges rather than edits, and it runs most often in the
+  # chain. Laguna took 12-27 minutes per verdict and wedged entirely once
+  # under memory pressure. The 35b-a3b MoE is the model five other reviewer
+  # roles already use, and its 3B active parameters keep it fast despite the
+  # size.
   review01SG:
-    default_alias: qwen-shared-sglang
+    default_alias: review02-local
     config_dir: review01SG
     client_aliases:
-      opencode: qwen-shared-sglang
+      claude-code: review02-local

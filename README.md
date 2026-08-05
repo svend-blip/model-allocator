@@ -310,6 +310,10 @@ other alias is untouched (guaranteed by tests).
 | `mcp-serve` (optional) | `pip install -e ".[mcp]"` (mcp[cli] >= 1.28.1) |
 | dev/tests | `pytest` |
 
+> **Full installation guide:** For comprehensive installation instructions covering all local runtimes
+> (llama.cpp, SGLang, Ollama, OpenCode, Claude Code) and environment configuration, see
+> [`/home/svend/DPMtF-WebUI/SETUP.md`](file:///home/svend/DPMtF-WebUI/SETUP.md).
+
 ## Quick start
 
 ```bash
