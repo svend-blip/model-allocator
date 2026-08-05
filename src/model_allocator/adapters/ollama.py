@@ -76,11 +76,52 @@ class OllamaAdapter:
             "error": None,
         }
 
+    def _name_variants(self) -> set:
+        """Every spelling Ollama might use for this model."""
+        variants = {self.real_model, self.real_model.rsplit(":", 1)[0]}
+        if ":" not in self.real_model:
+            variants.add(self.real_model + ":latest")
+        return variants
+
+    def placement(self) -> dict:
+        """Where Ollama actually put the model — GPU, CPU, or split.
+
+        Ollama does not fail when VRAM is short. It loads whatever fits and
+        runs the remainder on CPU, reporting success either way. The role
+        still works; it is simply five to ten times slower, with nothing in
+        any log to say why. Observed 2026-08-05: qwen3.6-27b ran at 99% CPU
+        because another server still held the GPU, and the only trace was a
+        human noticing the chain had gone quiet.
+
+        gpu_fraction is size_vram/size — 1.0 when fully resident on the GPU,
+        near 0 when the model is effectively running on the CPU.
+        """
+        try:
+            data = self._request("/api/ps")
+        except OllamaAdapterError as exc:
+            return {"known": False, "error": str(exc)}
+        variants = self._name_variants()
+        for model in data.get("models", []):
+            name = model.get("name", "")
+            if name in variants or name.rsplit(":", 1)[0] in variants:
+                total = model.get("size") or 0
+                vram = model.get("size_vram") or 0
+                return {
+                    "known": True,
+                    "size": total,
+                    "size_vram": vram,
+                    "gpu_fraction": (vram / total) if total else 0.0,
+                    "error": None,
+                }
+        return {"known": False, "error": "model is not resident in Ollama"}
+
     def start_model(self) -> dict:
-        """Warm up the Ollama model via the generate API.
+        """Warm up the Ollama model via the generate API, then check placement.
 
         Uses a minimal prompt and keep_alive so the runtime loads the model
-        into memory without performing useful generation.
+        into memory without performing useful generation. A load that landed
+        on the CPU is reported as a failure: handing a role a model that
+        works but crawls is far harder to diagnose later than an error here.
         """
         if not self.api_base:
             return {"started": False, "error": "OLLAMA_BASE_URL not configured"}
@@ -95,9 +136,36 @@ class OllamaAdapter:
         data = json.dumps(payload).encode("utf-8")
         try:
             self._request("/api/generate", method="POST", data=data, timeout=60)
-            return {"started": True, "error": None}
         except Exception as exc:
             return {"started": False, "error": f"Ollama start failed: {exc}"}
+
+        min_gpu = float(os.environ.get("DPMTF_OLLAMA_MIN_GPU_FRACTION", "0.9"))
+        place = self.placement()
+        if not place.get("known"):
+            # Cannot tell. Do not invent a failure, but say the check was not
+            # made rather than implying the placement was verified.
+            return {"started": True, "error": None, "placement": "unknown",
+                    "placement_error": place.get("error")}
+
+        fraction = place["gpu_fraction"]
+        gib = 1024 ** 3
+        result = {
+            "started": True,
+            "error": None,
+            "gpu_fraction": round(fraction, 3),
+            "size_vram": place["size_vram"],
+            "size": place["size"],
+        }
+        if fraction < min_gpu:
+            result["started"] = False
+            result["error"] = (
+                f"model loaded at {fraction:.0%} GPU "
+                f"({place['size_vram'] / gib:.1f} of {place['size'] / gib:.1f} GiB "
+                f"in VRAM) — below the {min_gpu:.0%} floor. Something else is "
+                f"holding the GPU, or the model does not fit. Running it here "
+                f"would be far slower than it looks."
+            )
+        return result
 
     def stop_model(self, timeout: int = 30) -> dict:
         """Stop the Ollama model via the `ollama` CLI with a timeout.

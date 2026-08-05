@@ -420,8 +420,12 @@ class TestLlamaCppAdapter(unittest.TestCase):
         self.assertGreater(adapter.port, 0)
 
     def test_stop_removes_pid_file(self):
+        # No default_port: the adapter picks a free one. Pinning this to a
+        # real port (8080) made the test reach out to whatever server was
+        # running on the host, because stop() now confirms against the port
+        # instead of trusting the pid file.
         with tempfile.TemporaryDirectory() as tmp:
-            resolved = {"alias": "x", "context": 4096, "default_port": 8080}
+            resolved = {"alias": "x", "context": 4096}
             adapter = llama_cpp_adapter.LlamaCppAdapter(resolved, state_dir=tmp)
             pid_file = Path(adapter.pid_file)
             pid_file.write_text("999999999", encoding="utf-8")
@@ -430,6 +434,27 @@ class TestLlamaCppAdapter(unittest.TestCase):
                 result = adapter.stop(timeout=1)
             self.assertTrue(result["stopped"])
             self.assertFalse(pid_file.exists())
+
+    def test_stop_keeps_pid_file_when_server_survives(self):
+        """An unconfirmed stop must not throw away the pid file.
+
+        Deleting it left a live server the allocator could never stop
+        again: it held the whole GPU while every later stop reported
+        success against a pid file that no longer existed.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            resolved = {"alias": "x", "context": 4096}
+            adapter = llama_cpp_adapter.LlamaCppAdapter(resolved, state_dir=tmp)
+            pid_file = Path(adapter.pid_file)
+            pid_file.write_text("999999999", encoding="utf-8")
+            with patch("os.kill") as mock_kill, \
+                 patch.object(adapter, "_port_open", return_value=True), \
+                 patch.object(adapter, "_server_pids", return_value=[]):
+                mock_kill.side_effect = ProcessLookupError()
+                result = adapter.stop(timeout=1)
+            self.assertFalse(result["stopped"])
+            self.assertIn("still accepting connections", result["error"])
+            self.assertTrue(pid_file.exists())
 
 
 class TestValidatorV2(unittest.TestCase):

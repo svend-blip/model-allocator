@@ -158,9 +158,57 @@ class TestOllamaAdapter(unittest.TestCase):
         with patch.object(adapter, "_request", return_value={}) as mock_request:
             result = adapter.start_model()
             self.assertTrue(result["started"])
-            call_args = mock_request.call_args
-            self.assertEqual(call_args[0][0], "/api/generate")
-            self.assertEqual(call_args[1]["method"], "POST")
+            # start_model now makes a second call to /api/ps to check where
+            # the model landed, so assert on the FIRST call rather than the
+            # last one.
+            first_call = mock_request.call_args_list[0]
+            self.assertEqual(first_call[0][0], "/api/generate")
+            self.assertEqual(first_call[1]["method"], "POST")
+            # An empty /api/ps means the placement could not be read. That is
+            # reported as unknown, never as verified.
+            self.assertEqual(result.get("placement"), "unknown")
+
+    def test_start_model_rejects_cpu_fallback(self):
+        """A model Ollama put on the CPU must not be reported as started.
+
+        Ollama loads whatever fits and runs the rest on CPU without error.
+        The role then works at a fraction of the speed with nothing in any
+        log to explain it — observed 2026-08-05 at 99% CPU. Ollama also
+        never migrates layers afterwards, so freeing VRAM later does not
+        repair it: the model has to be stopped and loaded again.
+        """
+        gib = 1024 ** 3
+        adapter = ollama_adapter.OllamaAdapter(
+            api_base="http://127.0.0.1:11434", real_model="m", context=4096)
+
+        def fake_request(path, *args, **kwargs):
+            if path == "/api/ps":
+                return {"models": [{"name": "m", "size": 20 * gib,
+                                    "size_vram": 1 * gib}]}
+            return {}
+
+        with patch.object(adapter, "_request", side_effect=fake_request):
+            result = adapter.start_model()
+        self.assertFalse(result["started"])
+        self.assertIn("GPU", result["error"])
+        self.assertLess(result["gpu_fraction"], 0.1)
+
+    def test_start_model_accepts_full_gpu_placement(self):
+        gib = 1024 ** 3
+        adapter = ollama_adapter.OllamaAdapter(
+            api_base="http://127.0.0.1:11434", real_model="m", context=4096)
+
+        def fake_request(path, *args, **kwargs):
+            if path == "/api/ps":
+                return {"models": [{"name": "m", "size": 20 * gib,
+                                    "size_vram": 20 * gib}]}
+            return {}
+
+        with patch.object(adapter, "_request", side_effect=fake_request):
+            result = adapter.start_model()
+        self.assertTrue(result["started"])
+        self.assertIsNone(result["error"])
+        self.assertEqual(result["gpu_fraction"], 1.0)
 
     def test_stop_model_handles_unloaded(self):
         adapter = ollama_adapter.OllamaAdapter(api_base="http://127.0.0.1:11434", real_model="m")

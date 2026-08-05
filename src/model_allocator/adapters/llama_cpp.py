@@ -158,13 +158,20 @@ class LlamaCppAdapter:
             try:
                 pid = int(Path(self.pid_file).read_text(encoding="utf-8").strip())
             except (FileNotFoundError, ValueError):
-                return {"running": False, "error": "No PID file", "pid": None}
+                # A lost pid file must not hide a live server — that is how
+                # an orphan comes to hold the GPU while status says "stopped".
+                owners = self._server_pids()
+                if not owners and not self._port_open():
+                    return {"running": False, "error": "No PID file", "pid": None}
+                pid = owners[0] if owners else None
 
-        try:
-            os.kill(pid, 0)
-            alive = True
-        except (OSError, ProcessLookupError):
-            alive = False
+        alive = False
+        if pid is not None:
+            try:
+                os.kill(pid, 0)
+                alive = True
+            except (OSError, ProcessLookupError):
+                alive = False
 
         health_url = f"http://{self.host}:{self.port}/health"
         try:
@@ -175,7 +182,10 @@ class LlamaCppAdapter:
             healthy = False
             health_error = str(exc)
 
-        running = alive and healthy
+        # The health endpoint answering IS the server being up. llama-server
+        # returns 503 while loading weights, so this still means "ready",
+        # which is what start() waits on.
+        running = healthy
         return {
             "running": running,
             "alive": alive,
@@ -200,24 +210,97 @@ class LlamaCppAdapter:
                 return {"stopped": True, "error": None}
             time.sleep(0.2)
 
+        # SIGTERM didn't work — escalate to SIGKILL
         try:
             os.kill(pid, signal.SIGKILL)
         except (OSError, ProcessLookupError):
-            pass
-        return {"stopped": True, "error": None}
-
-    def stop(self, timeout: int = 30) -> dict:
-        try:
-            pid = int(Path(self.pid_file).read_text(encoding="utf-8").strip())
-        except (FileNotFoundError, ValueError):
             return {"stopped": True, "error": None}
 
-        result = self._kill_pid(pid, timeout=timeout)
+        # Verify SIGKILL actually terminated the process
+        time.sleep(0.5)
+        try:
+            os.kill(pid, 0)
+            return {"stopped": False, "error": f"PID {pid} survived SIGKILL"}
+        except (OSError, ProcessLookupError):
+            return {"stopped": True, "error": None}
+
+    def _port_open(self) -> bool:
+        """Whether anything is still listening on the server port.
+
+        llama-server does not hand off to another process the way SGLang
+        does, so its recorded pid is normally accurate — but a pid is still
+        only bookkeeping. The port is the fact.
+        """
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(1.0)
+                return sock.connect_ex((self.host, self.port)) == 0
+        except OSError:
+            return False
+
+    def _server_pids(self) -> list[int]:
+        """PIDs running llama-server on this port, found by scanning /proc."""
+        pids: list[int] = []
+        port_token = str(self.port)
+        try:
+            entries = os.listdir("/proc")
+        except OSError:
+            return []
+        for entry in entries:
+            if not entry.isdigit():
+                continue
+            try:
+                with open(f"/proc/{entry}/cmdline", "rb") as handle:
+                    parts = handle.read().decode("utf-8", "replace").split("\0")
+            except OSError:
+                continue
+            if "llama-server" in " ".join(parts) and port_token in parts:
+                pids.append(int(entry))
+        return pids
+
+    def _forget_pid_file(self) -> None:
         try:
             os.unlink(self.pid_file)
         except OSError:
             pass
-        return result
+
+    def stop(self, timeout: int = 30) -> dict:
+        """Stop the server and prove it against the port.
+
+        Deleting the pid file after an unconfirmed kill is what turns a
+        surviving server into one the allocator can never stop again: every
+        later attempt finds no pid file and reports success while the model
+        keeps the whole GPU. The file now outlives an unconfirmed stop.
+        """
+        deadline = time.time() + timeout
+        step_timeout = max(5, timeout // 3)
+
+        try:
+            pid = int(Path(self.pid_file).read_text(encoding="utf-8").strip())
+        except (FileNotFoundError, ValueError):
+            pid = None
+
+        if pid is not None:
+            self._kill_pid(pid, timeout=step_timeout)
+
+        if not self._port_open():
+            self._forget_pid_file()
+            return {"stopped": True, "error": None}
+
+        for target in self._server_pids():
+            self._kill_pid(target, timeout=step_timeout)
+
+        while time.time() < deadline:
+            if not self._port_open():
+                self._forget_pid_file()
+                return {"stopped": True, "error": None}
+            time.sleep(0.5)
+
+        return {
+            "stopped": False,
+            "error": (f"port {self.port} is still accepting connections — "
+                      f"server not confirmed down"),
+        }
 
     def unload(self) -> dict:
         return self.stop()
