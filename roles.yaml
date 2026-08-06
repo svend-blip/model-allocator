@@ -212,3 +212,32 @@ roles:
     config_dir: review01SG
     client_aliases:
       claude-code: review02-local
+
+  # ── preferred_cloud ──────────────────────────────────────────────────
+  # The same chain shape as llama_SG on hosted models. Keys must match
+  # bridge_roles.role_key exactly — the allocator looks a role up by that
+  # string, and a mismatch resolves to nothing rather than to a default.
+  #
+  # Nothing here is loaded or unloaded: all three aliases are cloud_noop, so
+  # start and stop are credential checks. There is no card to take turns on,
+  # which is why this flow has no model-lifecycle dispatch scripts.
+  Pre-super-cl:
+    default_alias: opus5
+    config_dir: Pre-super-cl
+    client_aliases:
+      claude-code: opus5
+
+  # OpenCode, not Claude Code. The claude_code adapter rejects
+  # provider=minimax outright; MiniMax exposes an Anthropic-shaped endpoint
+  # but it is not wired, so the OpenAI-compatible path is the supported one.
+  Pre-imple-cl:
+    default_alias: cloud_minimax
+    config_dir: Pre-imple-cl
+    client_aliases:
+      opencode: cloud_minimax
+
+  Pre-review-cl:
+    default_alias: sonnet5
+    config_dir: Pre-review-cl
+    client_aliases:
+      claude-code: sonnet5
