@@ -48,6 +48,32 @@ Backend adapters  → concrete runtime commands (Ollama, llama.cpp, cloud, …)
 | `openai_compatible` | Cloud OpenAI-compatible | validate only | no-op | API reachability | model max context |
 | `onyx` | ONYX assistants (optional) | no-op (docker compose owns lifecycle) | no-op | `/health` + credentials | invoke-only: one-shot chat with citations |
 
+### Context handling — ollama vs llama.cpp
+
+For `local_ollama_cuda0` aliases, the `context` field in `models.yaml` is a **warm-up
+hint**: it sets `options.num_ctx` on the allocator's own warm-up request to
+`/api/generate`, but it does **not** bind the model to that size. If a client
+request (e.g. Claude Code, OpenCode) omits its own `num_ctx` parameter, Ollama
+reloads the model at the value **baked** into the model file — which may differ
+from the warm-up value.
+
+```
+models.yaml: context: 65536   → allocator warms the model with num_ctx=65536
+Claude Code connects without num_ctx  → Ollama reloads at baked default (e.g. 131072)
+```
+
+To **bind** a specific context size with ollama, point `real_model` at a variant
+that was baked at that exact size (e.g. `qwen3.6-27b-32k`, `-48k`, `-64k`).
+
+For `llama_cpp`, there is no such problem: `--ctx-size` is passed when the server
+starts and no client request can override it. The server abides by the flag
+permanently until restarted.
+
+| Adapter | context field | Binding? | Override risk |
+|---------|--------------|----------|---------------|
+| `ollama` | `num_ctx` per-request (warm-up hint) | No — model file has baked value | Client requests without explicit `num_ctx` revert to baked default |
+| `llama_cpp` | `--ctx-size` at server start | Yes — enforced for lifetime of process | None |
+
 ### Client adapters
 
 | Adapter | Launches | Model prefix |
