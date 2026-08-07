@@ -87,6 +87,21 @@ class LlamaCppAdapter:
             "--host", self.host,
             "--port", str(self.port),
         ]
+        # Serve under the name the client will ask for.
+        #
+        # Without --alias, llama.cpp names the model after the GGUF file, so
+        # /v1/models returns "qwen2.5-coder-14b-instruct-q4_K_M.gguf" while
+        # the opencode config -- built from `real_model` -- tells OpenCode to
+        # request "qwen2.5-coder-14b-instruct-q4_K_M". The two are assembled
+        # in different places from different sources and had no reason to
+        # agree.
+        served = (
+            self.resolved.get("served_model_name")
+            or self.resolved.get("opencode_model_id")
+            or self.resolved.get("real_model")
+        )
+        if served:
+            argv += ["--alias", str(served)]
         flags = self.resolved
         if "parallel" in flags:
             argv += ["--parallel", str(flags["parallel"])]
