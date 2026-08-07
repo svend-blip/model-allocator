@@ -61,3 +61,39 @@ class OllamaOutputBudgetTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _llama(**over):
+    base = {
+        "backend": "llama_cpp",
+        "provider": "llama-local",
+        "real_model": "qwen2.5-coder-14b",
+        "context": 32768,
+        "default_port": 8080,
+    }
+    base.update(over)
+    return base
+
+
+class LlamaCppLimitTests(unittest.TestCase):
+    """This branch emitted no limit at all.
+
+    A llama.cpp role never told OpenCode its context window, so the client
+    fell back to whatever it assumes for an unknown model. Configuring a
+    window is pointless if the client is not told.
+    """
+
+    def test_the_context_reaches_opencode(self):
+        self.assertEqual(_limit(_llama())["context"], 32768)
+
+    def test_the_output_budget_is_not_the_whole_window(self):
+        self.assertLess(_limit(_llama())["output"], 32768)
+
+    def test_max_output_tokens_is_honoured(self):
+        self.assertEqual(_limit(_llama(max_output_tokens=4096))["output"], 4096)
+
+    def test_an_alias_without_a_context_emits_no_limit(self):
+        """Absent is not zero. A limit of 0 would be worse than none."""
+        cfg = opencode.build_opencode_config(_llama(context=None))
+        provider = next(iter(cfg["provider"].values()))
+        self.assertNotIn("limit", next(iter(provider["models"].values())))

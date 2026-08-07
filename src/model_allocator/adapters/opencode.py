@@ -145,6 +145,21 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
         model_id = resolved.get("opencode_model_id") or resolved.get("real_model") or "model"
         host = resolved.get("host", "127.0.0.1")
         port = resolved.get("port", resolved.get("default_port", 8080))
+        model_entry: dict[str, Any] = {
+            "name": resolved.get("display_name") or model_id,
+        }
+        # This branch emitted no limit at all, so a llama.cpp role never told
+        # OpenCode its context window and the client fell back to whatever it
+        # assumes for an unknown model. The whole point of configuring a
+        # window is that the client knows it.
+        context = resolved.get("context")
+        if context:
+            model_entry["limit"] = {
+                "context": int(context),
+                "output": int(
+                    resolved.get("max_output_tokens") or min(int(context), 8192)
+                ),
+            }
         return {
             "model": model_field,
             "provider": {
@@ -152,11 +167,7 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
                     "npm": "@ai-sdk/openai-compatible",
                     "name": provider_name,
                     "options": {"baseURL": f"http://{host}:{port}/v1"},
-                    "models": {
-                        model_id: {
-                            "name": resolved.get("display_name") or model_id,
-                        },
-                    },
+                    "models": {model_id: model_entry},
                 },
             },
         }
