@@ -14,6 +14,28 @@ from pathlib import Path
 from typing import Any
 
 
+def served_model_id(resolved: dict) -> str:
+    """The ONE name a llama.cpp model is served under and requested by.
+
+    Used by this adapter for `--alias` and by the opencode config builder
+    for the model id, because the two were previously assembled in
+    different places from different key orders: the adapter preferred
+    `served_model_name`, the config builder did not know the key existed.
+    An alias setting only `served_model_name` got a server serving one name
+    and a config requesting another -- a mismatch that shows on the first
+    request, after preflight has passed.
+
+    Empty string when nothing names the model; callers emit no flag and
+    fall back to their own defaults.
+    """
+    return str(
+        resolved.get("served_model_name")
+        or resolved.get("opencode_model_id")
+        or resolved.get("real_model")
+        or ""
+    )
+
+
 class LlamaCppAdapterError(Exception):
     pass
 
@@ -95,11 +117,7 @@ class LlamaCppAdapter:
         # request "qwen2.5-coder-14b-instruct-q4_K_M". The two are assembled
         # in different places from different sources and had no reason to
         # agree.
-        served = (
-            self.resolved.get("served_model_name")
-            or self.resolved.get("opencode_model_id")
-            or self.resolved.get("real_model")
-        )
+        served = served_model_id(self.resolved)
         if served:
             argv += ["--alias", str(served)]
         flags = self.resolved

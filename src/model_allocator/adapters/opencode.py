@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import shutil
+
+from model_allocator.adapters.llama_cpp import served_model_id as _llamacpp_name
 from typing import Any
 
 
@@ -97,7 +99,7 @@ def _model_arg(resolved: dict) -> str:
         return f"{_openai_provider_name(resolved)}/{real_model}"
     if backend == "llama_cpp":
         provider_name = resolved.get("opencode_provider_name") or provider or "llama-local"
-        model_id = resolved.get("opencode_model_id") or real_model or "model"
+        model_id = _llamacpp_name(resolved) or "model"
         return f"{provider_name}/{model_id}"
     if backend == "sglang":
         provider_name = resolved.get("opencode_provider_name") or provider or "sglang-local"
@@ -142,7 +144,9 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
 
     if backend == "llama_cpp":
         provider_name = resolved.get("opencode_provider_name") or provider or "llama-local"
-        model_id = resolved.get("opencode_model_id") or resolved.get("real_model") or "model"
+        # One function names the model for both the server's --alias and this
+        # config, so the two cannot drift apart again.
+        model_id = _llamacpp_name(resolved) or "model"
         host = resolved.get("host", "127.0.0.1")
         port = resolved.get("port", resolved.get("default_port", 8080))
         model_entry: dict[str, Any] = {
@@ -157,7 +161,7 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
             model_entry["limit"] = {
                 "context": int(context),
                 "output": int(
-                    resolved.get("max_output_tokens") or min(int(context), 8192)
+                    resolved.get("max_output_tokens") or min(int(context) // 2, 8192)
                 ),
             }
         return {
@@ -184,7 +188,7 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
         if context:
             model_entry["limit"] = {
                 "context": int(context),
-                "output": int(resolved.get("max_output_tokens") or min(int(context), 8192)),
+                "output": int(resolved.get("max_output_tokens") or min(int(context) // 2, 8192)),
             }
         return {
             "model": model_field,
@@ -222,7 +226,7 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
         if context:
             model_entry["limit"] = {
                 "context": int(context),
-                "output": int(resolved.get("max_output_tokens") or min(int(context), 65536)),
+                "output": int(resolved.get("max_output_tokens") or min(int(context) // 2, 8192)),
             }
         return {
             "model": model_field,
@@ -257,7 +261,7 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
                 # effect at all -- it looked like a deliberate config choice
                 # and was the adapter.
                 "output": int(
-                    resolved.get("max_output_tokens") or min(int(context), 8192)
+                    resolved.get("max_output_tokens") or min(int(context) // 2, 8192)
                 ),
             }
         if _ollama_v1_mode(resolved):

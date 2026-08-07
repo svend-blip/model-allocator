@@ -346,12 +346,20 @@ class TestOpenCodeAdapter(unittest.TestCase):
         limit = cfg["provider"]["minimax"]["models"]["MiniMax-M3"]["limit"]
         self.assertEqual(limit, {"context": 1000000, "output": 65536})
 
-    def test_render_config_openai_compatible_output_falls_back_to_64k(self):
+    def test_render_config_openai_compatible_output_fallback_leaves_headroom(self):
+        # This test used to assert the fallback was min(context, 65536) --
+        # which for every window up to 64k meant output == the whole window,
+        # leaving nothing for input. The test enshrined the defect: imple01LW
+        # ran at 8192/8192 for four executions and compacted on nearly every
+        # turn because of exactly this shape. The unset default is now half
+        # the window, capped at 8192; aliases that want more say so with
+        # max_output_tokens.
         resolved = self._minimax_resolved()
         del resolved["max_output_tokens"]
         cfg = opencode.build_opencode_config(resolved)
         limit = cfg["provider"]["minimax"]["models"]["MiniMax-M3"]["limit"]
-        self.assertEqual(limit["output"], 65536)
+        self.assertLess(limit["output"], limit["context"])
+        self.assertEqual(limit["output"], min(limit["context"] // 2, 8192))
 
     def test_render_config_openai_compatible_without_api_key_env(self):
         resolved = self._minimax_resolved()

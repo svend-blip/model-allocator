@@ -97,3 +97,38 @@ class LlamaCppLimitTests(unittest.TestCase):
         cfg = opencode.build_opencode_config(_llama(context=None))
         provider = next(iter(cfg["provider"].values()))
         self.assertNotIn("limit", next(iter(provider["models"].values())))
+
+
+class FallbackHeadroomTests(unittest.TestCase):
+    """The unset default must also leave headroom.
+
+    The old fallback was `min(context, 8192)` -- which for any window of
+    8192 or less meant output == the whole window, the original defect
+    surviving in precisely the case that hid it the first time (imple01LW
+    ran at 8192/8192 for four executions). The openai branch capped at
+    65536 and had it for every window up to 64k.
+    """
+
+    def test_a_small_window_keeps_half_for_input(self):
+        limit = _limit(_resolved(context=4096))
+        self.assertEqual(limit["output"], 2048)
+        self.assertLess(limit["output"], limit["context"])
+
+    def test_the_boundary_case_that_hid_the_original_defect(self):
+        limit = _limit(_resolved(context=8192))
+        self.assertEqual(limit["output"], 4096)
+
+    def test_the_openai_branch_no_longer_gives_the_whole_window(self):
+        resolved = {
+            "backend": "openai_compatible",
+            "provider": "cloud_minimax",
+            "real_model": "m",
+            "api_base_env": "X_BASE",
+            "context": 65536,
+        }
+        import os
+        os.environ.setdefault("X_BASE", "https://api.example")
+        cfg = opencode.build_opencode_config(resolved)
+        provider = next(iter(cfg["provider"].values()))
+        limit = next(iter(provider["models"].values()))["limit"]
+        self.assertLess(limit["output"], limit["context"])

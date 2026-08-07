@@ -53,3 +53,35 @@ class ServedNameTests(unittest.TestCase):
         """Absent must not become the string 'None' on the command line."""
         argv = _argv(real_model="")
         self.assertNotIn("--alias", argv)
+
+
+class OneNameEverywhereTests(unittest.TestCase):
+    """The server's --alias and the config's requested model id must come
+    from ONE function.
+
+    The adapter preferred `served_model_name` first; the config builder's
+    llama_cpp branch did not know that key existed. An alias setting only
+    `served_model_name` got a server serving one name and a config
+    requesting another -- the .gguf mismatch reintroduced, and it only
+    shows on the first request, after preflight has passed.
+    """
+
+    def test_the_config_requests_the_name_the_server_serves(self):
+        resolved = {
+            "alias": "x", "backend": "llama_cpp", "provider": "llama-local",
+            "real_model": "qwen2.5-coder-14b",
+            "model_path": "/m.gguf", "server_bin_path": "/bin/sh",
+            "context": 32768, "default_port": 8080,
+            "served_model_name": "coder",
+        }
+        argv = LlamaCppAdapter(resolved)._build_argv()
+        served = argv[argv.index("--alias") + 1]
+        cfg = opencode.build_opencode_config(resolved)
+        provider = next(iter(cfg["provider"].values()))
+        self.assertIn(served, provider["models"],
+                      f"server serves {served!r}, config requests "
+                      f"{list(provider['models'])!r}")
+        self.assertTrue(cfg["model"].endswith("/" + served))
+
+
+from model_allocator.adapters import opencode  # noqa: E402
