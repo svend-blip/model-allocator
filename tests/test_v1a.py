@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 from model_allocator import cli, config_loader, resolver, validator
 from model_allocator.adapters import ollama as ollama_adapter
+from model_allocator.adapters import ollama as ollama_adapter
 from model_allocator.adapters import opencode
 from model_allocator.renderer import render_tmux_shell_string
 
@@ -339,7 +340,8 @@ class TestCli(unittest.TestCase):
         self.assertIn(code, (cli.EXIT_OK,))
 
     def test_status_command_does_not_crash(self):
-        code = cli.main(["--config-dir", str(self.cfg_dir), "status", "--alias", "imple01-local"])
+        with patch.object(ollama_adapter.OllamaAdapter, "_request", return_value={}):
+            code = cli.main(["--config-dir", str(self.cfg_dir), "status", "--alias", "imple01-local"])
         self.assertIn(code, (cli.EXIT_OK, cli.EXIT_WARNING))
 
     def test_run_command_renders_shell_string(self):
@@ -347,7 +349,15 @@ class TestCli(unittest.TestCase):
         self.assertEqual(code, cli.EXIT_OK)
 
     def test_start_command_does_not_crash(self):
-        code = cli.main(["--config-dir", str(self.cfg_dir), "start", "--alias", "imple01-local"])
+        # `imple01-local` resolves to qwen3-coder:30b-256k at ctx 131072 on a
+        # real local Ollama. Unmocked, this test LOADED it -- 25 GiB, mostly
+        # spilled to CPU when the card was already busy -- every time anyone
+        # ran the suite, and every DPMtF run's TG2 tells a role to run it.
+        # Observed 2026-08-05, isolated to this test 2026-08-07.
+        # The CLI path is still exercised end to end; only the load is faked.
+        with patch.object(ollama_adapter.OllamaAdapter, "start_model",
+                          return_value={"started": True, "alias": "imple01-local"}):
+            code = cli.main(["--config-dir", str(self.cfg_dir), "start", "--alias", "imple01-local"])
         self.assertIn(code, (cli.EXIT_OK, cli.EXIT_WARNING))
 
     def test_stop_command_for_missing_alias_returns_error(self):
