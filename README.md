@@ -14,6 +14,43 @@ bridge changes.
 
 ---
 
+## Place in the DPMtF Ecosystem
+
+Four components, one machine boundary:
+
+```
+   model-allocator                  model-allocator
+   (Father's copy)                  (worker's copy)
+         │ resolves role→model            │
+         ▼                                ▼
+   DPMtF-WebUI ("Father") ◄──────── DPMtF-LightWorker
+   flows · dispatch · evidence      polls Father over Tailscale,
+   gates · SQLite · port 9130       executes one role at a time in
+         │                          disposable worktrees
+         └── mcp-light (port 9135)
+             read-only context: loopback for Father's own
+             roles, a second tailnet instance for workers
+```
+
+| Component | Depends on | Provides |
+|-----------|-----------|----------|
+| model-allocator | its own machine's `models.yaml`/`roles.yaml` | role→model resolution, runtime lifecycle, client configs |
+| DPMtF-WebUI | model-allocator (same machine), SQLite | flows, dispatch, evidence gates, LightWorker endpoints, watchdog |
+| mcp-light | read access to DPMtF-WebUI's files and database | governance/flow/verdict lookup over MCP |
+| DPMtF-LightWorker | model-allocator (worker machine), Father reachable over Tailscale | remote role execution |
+
+**Install order — each step's preflight checks the one before it:**
+
+1. **model-allocator** — on every machine that runs models (Father and
+   each worker), with that machine's own config files.
+2. **DPMtF-WebUI** — on Father: `init_db` → `migrate` → uvicorn on 9130.
+3. **mcp-light** — on Father (optional but standard): loopback unit, plus
+   the tailnet unit if remote workers should reach it.
+4. **DPMtF-LightWorker** — on each worker: venv → `worker.yaml` → auth
+   token → base client config → `preflight.sh` 16/16 → daemon.
+
+Each repository's own Installation section covers its steps in detail.
+
 ## What it is
 
 Model Allocator is a small standalone Python CLI (plus a Father-side proxy + UI)
