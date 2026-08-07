@@ -251,11 +251,23 @@ def cmd_run(args: argparse.Namespace) -> int:
 
         if args.client == "opencode":
             config_dir = resolved.get("config_dir") or args.role
-            # Auto-refresh opencode.json so the TUI uses the correct model.
-            # OpenCode ignores --model on session resumption — the `model`
-            # field in opencode.json is the only reliable channel.
-            _refresh_opencode_json(resolved, config_dir)
-            command_object = opencode.build_opencode_command(resolved, config_dir)
+            config_path = getattr(args, "config", None)
+            if config_path:
+                # The caller owns this file and has already written it. Do
+                # NOT refresh -- refreshing would overwrite exactly what the
+                # caller built, which is the failure this option exists to
+                # fix: DPMtF-LightWorker rendered a per-execution config,
+                # then `run` pointed OpenCode at the shared role file
+                # instead and the rendered one was never read.
+                command_object = opencode.build_opencode_command(
+                    resolved, config_dir, config_path=config_path
+                )
+            else:
+                # Auto-refresh opencode.json so the TUI uses the correct model.
+                # OpenCode ignores --model on session resumption — the `model`
+                # field in opencode.json is the only reliable channel.
+                _refresh_opencode_json(resolved, config_dir)
+                command_object = opencode.build_opencode_command(resolved, config_dir)
         elif args.client == "claude-code":
             command_object = claude_code.build_claude_code_command(resolved)
         elif args.client == "headless":
@@ -682,6 +694,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--client", required=True, help="Client key (e.g. opencode, claude-code)")
     p_run.add_argument("--max-output-tokens", type=int, default=None, help="Override max_output_tokens for Claude Code roles")
     p_run.add_argument("--no-auto-start", action="store_true", default=False, help="Skip auto-starting the backend server")
+    p_run.add_argument("--config", default=None, help="Point OpenCode at this config file instead of the role's shared one, and do not refresh it (the caller owns it)")
     p_run.set_defaults(func=cmd_run)
 
     p_start = sub.add_parser("start", help="Warm up the backend runtime for an alias")

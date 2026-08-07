@@ -18,7 +18,29 @@ def _resolve_opencode_bin() -> str:
     return opencode_bin
 
 
-def _config_env(config_dir: str) -> dict[str, str]:
+def _config_env(config_dir: str, config_path: str | None = None) -> dict[str, str]:
+    """Where OpenCode reads its configuration.
+
+    Normally the role's shared directory under OPENCODE_ROLES_CONFIG_BASE,
+    which `run` refreshes on the way past.
+
+    ``config_path`` names a file the CALLER owns and has already written.
+    The allocator points OpenCode at it and refreshes nothing: the caller
+    built that file for one run and is entitled to have it be the one read.
+
+    DPMtF-LightWorker needs this. It renders a per-execution config, merges
+    its machine's provider endpoint and a permission block confining the
+    role to that execution's worktree, validates, and publishes -- and then
+    the command named the allocator's shared file instead, so the whole
+    sequence produced something nobody read. The role ran with no
+    confinement and no endpoint it could reach.
+    """
+    if config_path:
+        directory = os.path.dirname(config_path) or "."
+        return {
+            "OPENCODE_CONFIG_DIR": directory,
+            "OPENCODE_CONFIG": config_path,
+        }
     config_base = os.environ.get("OPENCODE_ROLES_CONFIG_BASE", "$HOME/.config/opencode-roles")
     full_config_dir = f"{config_base}/{config_dir}"
     return {
@@ -84,7 +106,9 @@ def _model_arg(resolved: dict) -> str:
     return real_model
 
 
-def build_opencode_command(resolved: dict, config_dir: str) -> dict[str, Any]:
+def build_opencode_command(
+    resolved: dict, config_dir: str, config_path: str | None = None
+) -> dict[str, Any]:
     """Build an OpenCode command object equivalent to command_builder.
 
     Supports Ollama, OpenAI-compatible cloud (OpenRouter, Minimax), and
@@ -103,7 +127,7 @@ def build_opencode_command(resolved: dict, config_dir: str) -> dict[str, Any]:
     opencode_bin = _resolve_opencode_bin()
 
     return {
-        "env": _config_env(config_dir),
+        "env": _config_env(config_dir, config_path),
         "argv": [opencode_bin],
     }
 
