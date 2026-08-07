@@ -238,7 +238,16 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
         if context:
             model_entry["limit"] = {
                 "context": int(context),
-                "output": min(int(context), 65536),
+                # `max_output_tokens`, like every other backend. This branch
+                # alone hardcoded output to the whole context, so an ollama
+                # role's output budget always equalled its window and there
+                # was no headroom for the system prompt or the work by any
+                # accounting. Setting max_output_tokens in models.yaml had no
+                # effect at all -- it looked like a deliberate config choice
+                # and was the adapter.
+                "output": int(
+                    resolved.get("max_output_tokens") or min(int(context), 8192)
+                ),
             }
         if _ollama_v1_mode(resolved):
             provider_name = _ollama_v1_provider_name(resolved)
