@@ -241,3 +241,11 @@ roles:
     config_dir: Pre-review-cl
     client_aliases:
       claude-code: sonnet5
+  # lightworker flow. The key must equal bridge_roles.role_key exactly:
+  # `model-allocator run` resolves --role against this file and has no
+  # --alias form, so a rename on either side breaks the other.
+  review01LW:
+    default_alias: sonnet5
+    config_dir: review01LW
+    client_aliases:
+      claude-code: sonnet5
