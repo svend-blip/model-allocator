@@ -1,9 +1,9 @@
 roles:
   imple01:
-    default_alias: cloud_minimax
+    default_alias: imple01-local
     config_dir: imple01
     client_aliases:
-      opencode: cloud_minimax
+      opencode: imple01-local
 
   archi01:
     default_alias: archi-local
