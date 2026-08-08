@@ -15,7 +15,7 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
       - argv: [claude_bin, *extra_args, "--model", <real_model>]
       - env: ANTHROPIC_BASE_URL = endpoint
              ANTHROPIC_AUTH_TOKEN = "ollama" for Ollama, or $<API_KEY_ENV> for cloud
-             ANTHROPIC_API_KEY = "" for cloud (prevents direct Anthropic fallback)
+             ANTHROPIC_API_KEY unset for cloud (prevents direct Anthropic fallback)
              CLAUDE_CODE_MAX_OUTPUT_TOKENS (when configured)
              CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING=1 (when configured)
              MODEL_ALLOCATOR_ACTIVE_MODEL (for debugging)
@@ -48,36 +48,37 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
         claude_bin = resolved_bin
 
     env: dict[str, str] = {}
+    unset_env: list[str] = []
     if backend == "ollama":
         api_base_env = resolved.get("api_base_env", "OLLAMA_BASE_URL")
         endpoint = os.environ.get(api_base_env, "") or resolved.get("default_api_base", "http://127.0.0.1:11434")
         env["ANTHROPIC_BASE_URL"] = endpoint
         env["ANTHROPIC_AUTH_TOKEN"] = "ollama"
-        env["ANTHROPIC_API_KEY"] = ""
+        unset_env += ["ANTHROPIC_API_KEY"]
     elif backend == "llama_cpp":
         host = resolved.get("host", resolved.get("default_host", "127.0.0.1"))
         port = resolved.get("port", resolved.get("default_port", 8080))
         endpoint = f"http://{host}:{port}"
         env["ANTHROPIC_BASE_URL"] = endpoint
         env["ANTHROPIC_AUTH_TOKEN"] = "dummy"
-        env["ANTHROPIC_API_KEY"] = ""
+        unset_env += ["ANTHROPIC_API_KEY"]
     elif backend == "anthropic":
         if resolved.get("credentials", "api_key") == "subscription":
-            # Use Claude Code's OWN login (Max/Pro subscription). All three
-            # variables are BLANKED rather than omitted: an inherited
+            # Use Claude Code's OWN login (Max/Pro subscription). The three
+            # variables are UNSET rather than blanked: an inherited
             # ANTHROPIC_API_KEY would silently move the session onto API
-            # billing, and an inherited ANTHROPIC_BASE_URL would redirect it to
-            # a local endpoint entirely. Empty means absent to Claude Code —
-            # the same assumption the cloud branch below already relies on when
-            # it blanks ANTHROPIC_API_KEY to prevent an Anthropic fallback.
-            env["ANTHROPIC_API_KEY"] = ""
-            env["ANTHROPIC_BASE_URL"] = ""
-            env["ANTHROPIC_AUTH_TOKEN"] = ""
+            # billing, and an inherited ANTHROPIC_BASE_URL would redirect it
+            # to a local endpoint entirely -- but present-and-empty is NOT
+            # absent to Claude Code. The Human (on Max) measured it: an empty
+            # ANTHROPIC_API_KEY triggers warnings in the client. The old
+            # comment here claimed "empty means absent"; lived experience
+            # falsified it.
+            unset_env += ["ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL",
+                          "ANTHROPIC_AUTH_TOKEN"]
         else:
             api_key_env = resolved.get("api_key_env", "ANTHROPIC_API_KEY")
             env["ANTHROPIC_API_KEY"] = f"${api_key_env}"
-            env["ANTHROPIC_BASE_URL"] = ""
-            env["ANTHROPIC_AUTH_TOKEN"] = ""
+            unset_env += ["ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN"]
     else:
         api_base_env = resolved.get("api_base_env")
         api_key_env = resolved.get("api_key_env")
@@ -92,7 +93,7 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
             raise ValueError(f"Cloud API base environment variable '{api_base_env}' is not set")
         env["ANTHROPIC_BASE_URL"] = endpoint
         env["ANTHROPIC_AUTH_TOKEN"] = f"${api_key_env}"
-        env["ANTHROPIC_API_KEY"] = ""
+        unset_env += ["ANTHROPIC_API_KEY"]
 
     # Max output tokens (from config or CLI override applied by caller)
     max_tokens = resolved.get("max_output_tokens")
@@ -114,6 +115,6 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
         extra_args = []
 
     return {
-        "env": env,
+        "env": env, "unset_env": unset_env,
         "argv": [claude_bin, *extra_args, "--model", real_model],
     }

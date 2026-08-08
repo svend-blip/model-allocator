@@ -29,6 +29,12 @@ def render_tmux_shell_string(command_object: dict[str, Any]) -> str:
 
     argv_part = " ".join(shlex.quote(str(arg)) for arg in argv)
 
-    if env_parts:
-        return " ".join(env_parts + [argv_part])
-    return argv_part
+    # Variables to REMOVE from the child's environment. `VAR='' prog` is
+    # present-and-empty, which Claude Code warns about and treats as set;
+    # `env -u VAR prog` is genuinely absent. Assignments still precede
+    # `env`, so `A=1 env -u B prog` sets A and strips B.
+    unset = command_object.get("unset_env") or []
+    unset_parts = (["env"] + [f"-u {name}" for name in unset]) if unset else []
+
+    parts = env_parts + unset_parts + [argv_part]
+    return " ".join(p for p in parts if p)

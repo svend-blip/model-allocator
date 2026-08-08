@@ -43,22 +43,33 @@ class SubscriptionModeTests(unittest.TestCase):
         resolved.update(overrides)
         return claude_code.build_claude_code_command(resolved)["env"]
 
-    def test_subscription_blanks_all_three_anthropic_variables(self):
-        env = self._env(credentials="subscription")
-        self.assertEqual(env["ANTHROPIC_API_KEY"], "")
-        self.assertEqual(env["ANTHROPIC_BASE_URL"], "")
-        self.assertEqual(env["ANTHROPIC_AUTH_TOKEN"], "")
+    def _cmd(self, **overrides) -> dict:
+        resolved = dict(BASE)
+        resolved.update(overrides)
+        return claude_code.build_claude_code_command(resolved)
+
+    def test_subscription_unsets_all_three_anthropic_variables(self):
+        """UNSET, not blanked. VAR='' is present-and-empty, which Claude Code
+        warns about on Max -- the Human measured it. The old expectation here
+        pinned the blanking and, with it, the warnings."""
+        cmd = self._cmd(credentials="subscription")
+        for name in ("ANTHROPIC_API_KEY", "ANTHROPIC_BASE_URL",
+                     "ANTHROPIC_AUTH_TOKEN"):
+            self.assertIn(name, cmd["unset_env"])
+            self.assertNotIn(name, cmd["env"])
 
     def test_subscription_does_not_pass_the_api_key_through(self):
         """THE REGRESSION: a '$ANTHROPIC_API_KEY' here means API billing."""
-        env = self._env(credentials="subscription")
-        self.assertNotIn("$", env["ANTHROPIC_API_KEY"])
+        cmd = self._cmd(credentials="subscription")
+        self.assertNotIn("ANTHROPIC_API_KEY", cmd["env"])
 
-    def test_subscription_blanks_base_url_so_an_inherited_one_cannot_redirect(self):
-        """An inherited ANTHROPIC_BASE_URL (e.g. a local Ollama) must not win."""
+    def test_subscription_unsets_base_url_so_an_inherited_one_cannot_redirect(self):
+        """An inherited ANTHROPIC_BASE_URL (e.g. a local Ollama) must not win.
+        `env -u` strips it from the child regardless of the parent."""
         with patch.dict("os.environ", {"ANTHROPIC_BASE_URL": "http://localhost:11434"}):
-            env = self._env(credentials="subscription")
-        self.assertEqual(env["ANTHROPIC_BASE_URL"], "")
+            cmd = self._cmd(credentials="subscription")
+        self.assertIn("ANTHROPIC_BASE_URL", cmd["unset_env"])
+        self.assertNotIn("ANTHROPIC_BASE_URL", cmd["env"])
 
     def test_api_key_mode_passes_the_key_through(self):
         env = self._env(credentials="api_key")

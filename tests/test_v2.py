@@ -139,7 +139,10 @@ class TestClaudeCodeAdapter(unittest.TestCase):
         self.assertEqual(cmd["argv"], ["/usr/bin/claude", "--model", "qwen3-coder:30b-256k"])
         self.assertEqual(cmd["env"]["ANTHROPIC_BASE_URL"], "http://127.0.0.1:11434")
         self.assertEqual(cmd["env"]["ANTHROPIC_AUTH_TOKEN"], "ollama")
-        self.assertEqual(cmd["env"]["ANTHROPIC_API_KEY"], "")
+        # Unset, not blanked: present-and-empty triggers Claude Code
+        # warnings (measured on Max, 2026-08-08).
+        self.assertIn("ANTHROPIC_API_KEY", cmd["unset_env"])
+        self.assertNotIn("ANTHROPIC_API_KEY", cmd["env"])
 
     @patch("model_allocator.adapters.claude_code.shutil.which", side_effect=_fake_which)
     def test_openrouter_backend(self, _mock):
@@ -154,7 +157,10 @@ class TestClaudeCodeAdapter(unittest.TestCase):
         with patch.dict(os.environ, {"OPENROUTER_API_BASE": "https://openrouter.ai/api"}):
             cmd = claude_code.build_claude_code_command(resolved)
         self.assertEqual(cmd["env"]["ANTHROPIC_AUTH_TOKEN"], "$OPENROUTER_API_KEY")
-        self.assertEqual(cmd["env"]["ANTHROPIC_API_KEY"], "")
+        # Unset, not blanked: present-and-empty triggers Claude Code
+        # warnings (measured on Max, 2026-08-08).
+        self.assertIn("ANTHROPIC_API_KEY", cmd["unset_env"])
+        self.assertNotIn("ANTHROPIC_API_KEY", cmd["env"])
 
     def test_rejects_minimax(self):
         resolved = {
@@ -175,8 +181,11 @@ class TestClaudeCodeAdapter(unittest.TestCase):
         cmd = claude_code.build_claude_code_command(resolved)
         self.assertEqual(cmd["argv"], ["/usr/bin/claude", "--model", "claude-fable-5"])
         self.assertEqual(cmd["env"]["ANTHROPIC_API_KEY"], "$ANTHROPIC_API_KEY")
-        self.assertEqual(cmd["env"]["ANTHROPIC_BASE_URL"], "")
-        self.assertEqual(cmd["env"]["ANTHROPIC_AUTH_TOKEN"], "")
+        # BASE_URL/AUTH_TOKEN unset, not blanked (see the adapter comment).
+        self.assertIn("ANTHROPIC_BASE_URL", cmd["unset_env"])
+        self.assertIn("ANTHROPIC_AUTH_TOKEN", cmd["unset_env"])
+        self.assertNotIn("ANTHROPIC_BASE_URL", cmd["env"])
+        self.assertNotIn("ANTHROPIC_AUTH_TOKEN", cmd["env"])
 
     @patch("model_allocator.adapters.claude_code.shutil.which", side_effect=_fake_which)
     def test_anthropic_backend_with_max_output_tokens(self, _mock):
