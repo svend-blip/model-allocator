@@ -228,10 +228,13 @@ roles:
   # start and stop are credential checks. There is no card to take turns on,
   # which is why this flow has no model-lifecycle dispatch scripts.
   Pre-super-cl:
-    default_alias: opus5
+    # TEMPORARY (Human, 2026-08-08): Fable 5 for the music-video-orchestrator
+    # finalization run -- the complexity warrants the stronger supervisor.
+    # Revert to opus5 when run 013 closes.
+    default_alias: fable5
     config_dir: Pre-super-cl
     client_aliases:
-      claude-code: opus5
+      claude-code: fable5
 
   # OpenCode, not Claude Code. The claude_code adapter rejects
   # provider=minimax outright; MiniMax exposes an Anthropic-shaped endpoint
