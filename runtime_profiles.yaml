@@ -68,3 +68,9 @@ runtime_profiles:
     password_env: ONYX_ADMIN_PASSWORD
     provider: onyx
     capabilities: [invoke]
+
+  # A client that manages its own model and runtime (freebuff). Nothing to
+  # start, stop or resolve -- the profile exists because every alias must
+  # name one, and lying about a backend would invite lifecycle calls.
+  external_tool:
+    backend: external

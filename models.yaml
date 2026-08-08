@@ -243,3 +243,12 @@ models:
     tool_call_parser: qwen3_coder
     clients:
       opencode: true
+
+  # freebuff carries its own model config; the alias exists so the role can
+  # take the standard allocator start path (roles.yaml -> alias -> client).
+  freebuff-cli:
+    runtime_profile: external_tool
+    real_model: freebuff-managed
+    lifecycle_policy: cloud_noop
+    clients:
+      freebuff: true

@@ -272,6 +272,9 @@ def cmd_run(args: argparse.Namespace) -> int:
             command_object = claude_code.build_claude_code_command(resolved)
         elif args.client == "headless":
             command_object = headless_adapter.build_headless_command(resolved, args.role)
+        elif args.client == "freebuff":
+            from model_allocator.adapters import freebuff as freebuff_adapter
+            command_object = freebuff_adapter.build_freebuff_command(resolved)
         else:
             print(f"ERROR: run command for client '{args.client}' is not implemented in V2", file=sys.stderr)
             return EXIT_ERROR
@@ -326,6 +329,13 @@ def cmd_stop(args: argparse.Namespace) -> int:
     except ResolutionError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return EXIT_ERROR
+
+    if resolved.get("backend") == "external":
+        # An external tool (freebuff) manages its own runtime; there is
+        # nothing to stop, and answering OK keeps the WebUI's Stop-servers
+        # sweep quiet instead of listing a spurious error per such role.
+        print(f"OK: alias '{args.alias}' is an external tool — nothing to stop")
+        return EXIT_OK
 
     try:
         adapter = _get_backend_adapter(resolved)

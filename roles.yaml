@@ -113,6 +113,12 @@ roles:
     client_aliases:
       claude-code: archi-pay
 
+  imple01cloud:
+    default_alias: freebuff-cli
+    config_dir: imple01cloud
+    client_aliases:
+      freebuff: freebuff-cli
+
   imple01pay:
     default_alias: imple-pay
     config_dir: imple01pay
