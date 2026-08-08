@@ -322,7 +322,71 @@ def cmd_start(args: argparse.Namespace) -> int:
     return EXIT_WARNING
 
 
+# Backends whose adapter manages a server PROCESS on this machine. Ollama is
+# deliberately absent: it evicts models by itself to make room, so its loaded
+# models never block another model the way a resident llama.cpp/SGLang server
+# does. Cloud/external/onyx backends own no local server process at all.
+LOCAL_SERVER_BACKENDS = ("llama_cpp", "sglang")
+
+
+def _stop_all_local_servers(args: argparse.Namespace) -> int:
+    """Stop every local model server configured on THIS machine.
+
+    Scope is the local config only — aliases resolve against this machine's
+    models.yaml and nothing is contacted over the network, so remote
+    LightWorkers (which run their own allocator) are never touched. The
+    purpose is VRAM reclaim: a resident llama.cpp/SGLang server holds the
+    GPU until someone stops it.
+    """
+    resolver = Resolver(config_dir=_config_dir(args))
+    results = []
+    seen_ports: set = set()
+    exit_code = EXIT_OK
+    for alias in resolver.list_aliases():
+        try:
+            resolved = resolver.resolve_alias(alias)
+        except ResolutionError as exc:
+            results.append({"alias": alias, "stopped": False,
+                            "error": f"resolution failed: {exc}"})
+            exit_code = EXIT_WARNING
+            continue
+        backend = resolved.get("backend")
+        if backend not in LOCAL_SERVER_BACKENDS:
+            continue
+        try:
+            adapter = _get_backend_adapter(resolved)
+        except ValueError as exc:
+            results.append({"alias": alias, "backend": backend,
+                            "stopped": False, "error": str(exc)})
+            exit_code = EXIT_WARNING
+            continue
+        port = getattr(adapter, "port", None)
+        if port is not None and port in seen_ports:
+            # Another alias already stopped the server on this port.
+            results.append({"alias": alias, "backend": backend,
+                            "stopped": True, "shared_port": port})
+            continue
+        result = adapter.stop(timeout=args.timeout)
+        if port is not None:
+            seen_ports.add(port)
+        results.append({"alias": alias, "backend": backend, "port": port,
+                        **result})
+        if not result.get("stopped"):
+            exit_code = EXIT_WARNING
+    print(json.dumps(results, indent=2, default=str))
+    return exit_code
+
+
 def cmd_stop(args: argparse.Namespace) -> int:
+    if getattr(args, "all_servers", False):
+        if args.alias:
+            print("ERROR: --alias and --all-servers are mutually exclusive",
+                  file=sys.stderr)
+            return EXIT_ERROR
+        return _stop_all_local_servers(args)
+    if not args.alias:
+        print("ERROR: provide --alias or --all-servers", file=sys.stderr)
+        return EXIT_ERROR
     resolver = Resolver(config_dir=_config_dir(args))
     try:
         resolved = resolver.resolve_alias(args.alias)
@@ -713,7 +777,10 @@ def build_parser() -> argparse.ArgumentParser:
     p_start.set_defaults(func=cmd_start)
 
     p_stop = sub.add_parser("stop", help="Stop the backend runtime for an alias")
-    p_stop.add_argument("--alias", required=True, help="Logical alias name")
+    p_stop.add_argument("--alias", help="Logical alias name")
+    p_stop.add_argument("--all-servers", action="store_true", dest="all_servers",
+                        help="Stop every local model server (llama.cpp, SGLang) "
+                             "configured on this machine — VRAM reclaim")
     p_stop.add_argument("--timeout", type=int, default=30, help="Timeout in seconds")
     p_stop.set_defaults(func=cmd_stop)
 
