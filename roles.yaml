@@ -164,6 +164,27 @@ roles:
     client_aliases:
       claude-code: sonnet5
 
+  # ── RevEngineer (491/492/493) ──────────────────────────────
+  # Retro-game reverse-engineering flow. Keys MUST match bridge_roles.role_key
+  # exactly (see supervisor note above) or the allocator binding is ignored.
+  Rev_Supervisor:
+    default_alias: cloud_deepseek
+    config_dir: Rev_Supervisor
+    client_aliases:
+      claude-code: cloud_deepseek
+
+  Rev_Imple:
+    default_alias: cloud_minimax
+    config_dir: Rev_Imple
+    client_aliases:
+      opencode: cloud_minimax
+
+  Rev_Review:
+    default_alias: sonnet5
+    config_dir: Rev_Review
+    client_aliases:
+      claude-code: sonnet5
+
   # ── supervised_review (452/453/454) ────────────────────────
   # Distinct from strict_review's imple01/review01/review02 so the two
   # flows can run concurrently and be tuned independently. Aliases start

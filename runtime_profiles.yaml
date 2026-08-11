@@ -5,6 +5,17 @@ runtime_profiles:
     default_api_base: http://127.0.0.1:11434
     gpu: cuda0
 
+  # Ollama's Anthropic-compatible endpoint used as a proxy for a ":cloud"
+  # model. Ollama forwards to its own cloud, so there is no local GPU to
+  # manage (pair with lifecycle_policy: cloud_noop on the model). The
+  # claude-code adapter's ollama branch sets ANTHROPIC_BASE_URL=<endpoint>
+  # and ANTHROPIC_AUTH_TOKEN=ollama, which is exactly the Human-provided
+  # invocation for deepseek-v4-pro:cloud (2026-08-11).
+  ollama_cloud:
+    backend: ollama
+    api_base_env: OLLAMA_BASE_URL
+    default_api_base: http://127.0.0.1:11434
+
   local_llamacpp_cuda0:
     backend: llama_cpp
     # Example paths are illustrative only; real values come from env vars.

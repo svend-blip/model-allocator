@@ -156,6 +156,18 @@ models:
     lifecycle_policy: cloud_noop
     clients:
       opencode: true
+  cloud_deepseek:
+    runtime_profile: ollama_cloud
+    # DeepSeek V4 Pro served via Ollama's Anthropic-compatible endpoint through
+    # the claude-code client. Human-provided 2026-08-11:
+    #   ANTHROPIC_BASE_URL=http://127.0.0.1:11434 ANTHROPIC_AUTH_TOKEN=ollama \
+    #     claude --model deepseek-v4-pro:cloud
+    real_model: deepseek-v4-pro:cloud
+    # PROVISIONAL context — verify against the served model; 128k is a safe floor.
+    context: 131072
+    lifecycle_policy: cloud_noop
+    clients:
+      claude-code: true
   cloud_minimax:
     runtime_profile: cloud_minimax
     # MiniMax's newest coding model; limits mirror models.dev metadata
