@@ -178,11 +178,22 @@ roles:
     client_aliases:
       opencode: glm-air-derestricted-local
 
+  # Moved off MiniMax-M3 on 2026-08-12. MiniMax returned its own pseudo-XML
+  # tool syntax as plain text instead of structured tool_calls, ending the
+  # turn with finish "stop" and no tool executed: 1 of 18 completed turns on
+  # 11-12 Aug, then 5 of 7 on the 12th. At that rate the role cannot work at
+  # all, and nothing about it is fixable from this side.
+  #
+  # Sharing Rev_Supervisor's alias is deliberate beyond the model choice:
+  # dispatch only stops the outgoing model when from_alias != to_alias, so a
+  # supervisor->imple handoff now keeps the server loaded instead of tearing
+  # it down and rebuilding it. The two roles never run concurrently, which is
+  # what makes one llama.cpp slot enough.
   Rev_Imple:
-    default_alias: cloud_minimax
+    default_alias: glm-air-derestricted-local
     config_dir: Rev_Imple
     client_aliases:
-      opencode: cloud_minimax
+      opencode: glm-air-derestricted-local
 
   Rev_Review:
     default_alias: sonnet5
