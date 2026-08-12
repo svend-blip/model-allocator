@@ -308,3 +308,12 @@ roles:
     config_dir: pi_imple01_glm
     client_aliases:
       pi: glm-air-derestricted-local
+
+  # The OpenCode arm of pi_test. Identical to pi_imple01 except for the
+  # client — that is the point, and any drift between these two entries
+  # invalidates the comparison they exist to support.
+  oc_imple01:
+    default_alias: cloud_minimax
+    config_dir: oc_imple01
+    client_aliases:
+      opencode: cloud_minimax
