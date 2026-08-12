@@ -14,11 +14,26 @@ keep in step and no equivalent of the defect that made OpenCode ignore
 declares the custom providers; the role's own model comes from argv.
 
 **Cloud providers Pi ships with are used as they are.** MiniMax and
-OpenRouter are built-in and maintained upstream, complete with model
-metadata, so this adapter declares nothing for them and lets Pi's own
-integration handle the wire format. That is the whole reason a Pi/MiniMax
-role is worth measuring against an OpenCode/MiniMax one: OpenCode reaches
-MiniMax through a generic `@ai-sdk/openai-compatible` block, and Pi does not.
+OpenRouter are first-party providers — `docs/providers.md` lists them in its
+own auth table (`MINIMAX_API_KEY`, `auth.json` key `minimax`) and their
+model metadata is refreshed into `models-store.json` — so this adapter
+declares nothing for them and lets Pi's own integration handle the wire
+format.
+
+That is a narrower claim than "Pi supports MiniMax", and the distinction
+matters. Pi's package system can also install **third-party** provider
+extensions, including unofficial MiniMax ones, and an installed extension is
+a different code path with different metadata and a different maintainer.
+`is_builtin_provider` below decides only whether *this adapter* should
+declare a custom provider; it does not and cannot tell you which
+implementation Pi will actually use if someone has installed an extension
+for the same provider name. Verified 2026-08-12 on this machine: `pi list`
+reported no packages installed, so the measurements taken here are of the
+first-party path.
+
+That path is the reason a Pi/MiniMax role is worth measuring against an
+OpenCode/MiniMax one: OpenCode reaches MiniMax through a generic
+`@ai-sdk/openai-compatible` block, and first-party Pi does not.
 
 Local servers are the opposite case and need declaring: a custom provider
 with `api: "openai-completions"` pointing at the allocator's own endpoint.

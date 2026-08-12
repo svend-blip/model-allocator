@@ -181,8 +181,13 @@ models:
     # claude-code is deliberately absent: the claude_code adapter rejects
     # provider=minimax (no Anthropic-shaped support at the time of writing).
     #
-    # pi reaches MiniMax through Pi's own built-in provider rather than a
-    # generic openai-compatible block, which is the point of declaring both:
+    # pi reaches MiniMax through Pi's own first-party provider — the one in
+    # its providers.md auth table, keyed `minimax` — rather than a generic
+    # openai-compatible block. Not the same thing as a third-party MiniMax
+    # provider extension from Pi's package system, which would be a
+    # different implementation under the same provider name; `pi list`
+    # reported none installed when this was measured. The distinction is the
+    # point of declaring both clients:
     # OpenCode/MiniMax produced a textual imitation of a tool call instead of
     # a structured one in five of seven completed turns on 2026-08-12, and
     # the same failure is documented upstream for MiniMax-M2.7. Whether that
