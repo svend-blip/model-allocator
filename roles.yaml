@@ -167,11 +167,16 @@ roles:
   # ── RevEngineer (491/492/493) ──────────────────────────────
   # Retro-game reverse-engineering flow. Keys MUST match bridge_roles.role_key
   # exactly (see supervisor note above) or the allocator binding is ignored.
+  # The one local model in this flow, and the reason 491's "everything here is
+  # hosted" section had to be rewritten: dispatch really does stop and start
+  # this server, so ConnectionRefused after a handoff is the normal state for
+  # this role rather than an outage. OpenCode, not Claude Code -- llama.cpp
+  # reaches the client through @ai-sdk/openai-compatible.
   Rev_Supervisor:
-    default_alias: cloud_deepseek
+    default_alias: glm-air-derestricted-local
     config_dir: Rev_Supervisor
     client_aliases:
-      claude-code: cloud_deepseek
+      opencode: glm-air-derestricted-local
 
   Rev_Imple:
     default_alias: cloud_minimax

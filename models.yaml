@@ -242,6 +242,53 @@ models:
     clients:
       claude-code: true
 
+  # GLM-4.5-Air-Derestricted for reveng's Rev_Supervisor, through OpenCode.
+  # The only local model in that flow: Rev_Imple and Rev_Review are hosted, so
+  # this alias is the one thing dispatch loads and unloads there.
+  #
+  # The GGUF is mradermacher's byte-split (`.gguf.part1of2` / `part2of2`), NOT
+  # llama.cpp's split-GGUF format -- part2 carries no GGUF header, so the
+  # server cannot open the parts and `--model .part1of2` fails on a file that
+  # looks superficially right. The parts are concatenated once into the path
+  # below; if that file goes missing, `cat part1of2 part2of2 > *.gguf` remakes
+  # it. Naming it `-00001-of-00002.gguf` would NOT work: that would make
+  # llama.cpp look for shards that were never produced.
+  #
+  # Port 8080 is shared with laguna-local on purpose. Both are stop_after_step
+  # and never wanted at once, and a shared port fails loudly on bind if one is
+  # still resident. Distinct ports would let both load and quietly starve the
+  # card instead.
+  glm-air-derestricted-local:
+    runtime_profile: local_llamacpp_cuda0
+    real_model: glm-4.5-air-derestricted
+    display_name: GLM-4.5-Air-Derestricted (IQ4_XS)
+    server_bin_path: ${LLAMA_SERVER_BIN}
+    model_path: ${MODEL_ROOT_GGUF}/GLM-4.5-Air-Derestricted-IQ4_XS/GLM-4.5-Air-Derestricted.IQ4_XS.gguf
+    opencode_provider_name: glm-local
+    # Measured from the GGUF metadata: glm4moe, 47 blocks, 128 experts,
+    # head_count_kv 8, key/value length 128. Expert weights are ~1.17 GB per
+    # layer, so n_cpu_moe 32 keeps ~21 GB of weights on the 5090 and ~37 GB in
+    # host RAM; q8_0 KV at 65536 costs ~6.5 GB of the remainder. The model's
+    # native window is 131072 -- raising `context` means lowering the GPU's
+    # share of the experts, not just spending spare VRAM.
+    context: 65536
+    max_output_tokens: 16384
+    lifecycle_policy: stop_after_step
+    n_cpu_moe: 32
+    cache_type_k: q8_0
+    cache_type_v: q8_0
+    flash_attn: "on"
+    gpu_layers: 99
+    jinja: true
+    # Not mmap: 37 GB of experts mapped against a machine that also runs a
+    # browser and ComfyUI invites page-in stalls mid-generation. `none` makes
+    # the memory a startup cost, and a shortage an immediate failure rather
+    # than a slow one.
+    load_mode: none
+    parallel: 1
+    clients:
+      opencode: true
+
   qwen-shared-sglang:
     runtime_profile: local_sglang_cuda0
     real_model: Qwen3-Coder-30B-A3B-Instruct
