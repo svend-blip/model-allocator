@@ -292,3 +292,19 @@ roles:
     config_dir: review01LW
     client_aliases:
       claude-code: sonnet5
+
+  # ── pi_test (Pi frontend A/B) ──────────────────────────────
+  # Same models as the roles they are compared against; only the frontend
+  # differs. That is the whole design: model, runtime and governance held
+  # constant so the comparison measures the client and nothing else.
+  pi_imple01:
+    default_alias: cloud_minimax
+    config_dir: pi_imple01
+    client_aliases:
+      pi: cloud_minimax
+
+  pi_imple01_glm:
+    default_alias: glm-air-derestricted-local
+    config_dir: pi_imple01_glm
+    client_aliases:
+      pi: glm-air-derestricted-local

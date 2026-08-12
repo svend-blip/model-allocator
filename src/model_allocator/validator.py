@@ -111,11 +111,15 @@ class Validator:
             )
             result["validation_status"] = "ERROR"
             return
-        if backend == "llama_cpp" and client != "opencode":
+        # Locally served backends speak OpenAI Chat Completions, so any client
+        # that can be pointed at a base URL works. Pi is the second such
+        # client: it takes --provider/--model per invocation and reads the
+        # endpoint from a custom provider in its models.json.
+        if backend == "llama_cpp" and client not in ("opencode", "pi"):
             result["errors"].append(f"Client '{client}' is not supported for llama.cpp backend")
             result["validation_status"] = "ERROR"
             return
-        if backend == "sglang" and client != "opencode":
+        if backend == "sglang" and client not in ("opencode", "pi"):
             result["errors"].append(f"Client '{client}' is not supported for sglang backend")
             result["validation_status"] = "ERROR"
             return

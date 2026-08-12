@@ -180,8 +180,17 @@ models:
     lifecycle_policy: cloud_noop
     # claude-code is deliberately absent: the claude_code adapter rejects
     # provider=minimax (no Anthropic-shaped support at the time of writing).
+    #
+    # pi reaches MiniMax through Pi's own built-in provider rather than a
+    # generic openai-compatible block, which is the point of declaring both:
+    # OpenCode/MiniMax produced a textual imitation of a tool call instead of
+    # a structured one in five of seven completed turns on 2026-08-12, and
+    # the same failure is documented upstream for MiniMax-M2.7. Whether that
+    # is the model or the harness is what a same-model, same-task comparison
+    # between these two clients settles.
     clients:
       opencode: true
+      pi: true
   fable5:
     runtime_profile: cloud_anthropic
     real_model: claude-fable-5
@@ -288,6 +297,7 @@ models:
     parallel: 1
     clients:
       opencode: true
+      pi: true
 
   qwen-shared-sglang:
     runtime_profile: local_sglang_cuda0

@@ -49,6 +49,19 @@ COMMON_ALIAS_FIELDS: dict[str, object] = {
     "disable_adaptive_thinking": bool,
     "claude_binary": str,
     "claude_extra_args": list,
+    # Pi frontend. `pi_tools` is the one of these that carries governance
+    # rather than configuration: it is an allowlist the client enforces, so a
+    # reviewer that must not write can be prevented from writing instead of
+    # asked not to.
+    "pi_provider_name": str,
+    "pi_model_id": str,
+    "pi_agent_dir": str,
+    "pi_api_key": str,
+    "pi_no_session": bool,
+    "pi_thinking": str,
+    "pi_tools": list,
+    "pi_skills": list,
+    "pi_extra_args": list,
     # Pre-seeded for in-flight plans
     "ssh_host": str,
     "remote_workdir": str,

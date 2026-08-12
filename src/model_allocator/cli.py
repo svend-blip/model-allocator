@@ -209,6 +209,39 @@ def _refresh_opencode_json(resolved: dict, config_dir: str) -> None:
         print(f"  WARNING: opencode.json refresh failed: {exc}", file=sys.stderr)
 
 
+def _refresh_pi_models_json(resolved: dict) -> None:
+    """Declare a locally-served alias to Pi, leaving everything else alone.
+
+    Written to the shared agent directory rather than a per-role one on
+    purpose: Pi resolves credentials from `auth.json` in that same directory,
+    so isolating it per role would isolate the credentials too and every
+    cloud role would lose them. Roles do not need separate files here anyway
+    -- the model is chosen by `--model` on each invocation.
+
+    Built-in providers (MiniMax, OpenRouter, ...) get no entry at all. Pi
+    maintains their metadata upstream, and a custom block would shadow it
+    with whatever this repository happened to believe.
+    """
+    from model_allocator.adapters import pi as pi_adapter
+
+    fragment = pi_adapter.build_pi_models_json(resolved)
+    if not fragment:
+        return
+    path = Path(pi_adapter.pi_agent_dir()) / "models.json"
+    try:
+        existing: dict = {}
+        if path.exists():
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        providers = dict(existing.get("providers") or {})
+        providers.update(fragment)
+        existing["providers"] = providers
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _atomic_write_json(path, existing)
+        print(f"  Refreshed Pi models.json: {path}", file=sys.stderr)
+    except Exception as exc:
+        print(f"  WARNING: Pi models.json refresh failed: {exc}", file=sys.stderr)
+
+
 def cmd_run(args: argparse.Namespace) -> int:
     """Print the tmux-safe shell string for starting a client against an alias."""
     resolver = Resolver(config_dir=_config_dir(args))
@@ -270,6 +303,14 @@ def cmd_run(args: argparse.Namespace) -> int:
                 command_object = opencode.build_opencode_command(resolved, config_dir)
         elif args.client == "claude-code":
             command_object = claude_code.build_claude_code_command(resolved)
+        elif args.client == "pi":
+            # Pi honours --provider/--model on every invocation, so unlike
+            # OpenCode there is no per-role config file whose `model` field
+            # is the only reliable channel. The only file involved declares
+            # local servers Pi ships no provider for, and it is shared.
+            from model_allocator.adapters import pi as pi_adapter
+            _refresh_pi_models_json(resolved)
+            command_object = pi_adapter.build_pi_command(resolved)
         elif args.client == "headless":
             command_object = headless_adapter.build_headless_command(resolved, args.role)
         elif args.client == "freebuff":
@@ -765,7 +806,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_run = sub.add_parser("run", help="Render the tmux-safe shell string for a role/client")
     p_run.add_argument("--role", required=True, help="Role key")
-    p_run.add_argument("--client", required=True, help="Client key (e.g. opencode, claude-code)")
+    p_run.add_argument("--client", required=True, help="Client key (e.g. opencode, claude-code, pi)")
     p_run.add_argument("--max-output-tokens", type=int, default=None, help="Override max_output_tokens for Claude Code roles")
     p_run.add_argument("--no-auto-start", action="store_true", default=False, help="Skip auto-starting the backend server")
     p_run.add_argument("--config", default=None, help="Point OpenCode at this config file instead of the role's shared one, and do not refresh it (the caller owns it)")
