@@ -602,14 +602,14 @@ function renderSystem() {
     btnRun.textContent = lbl("lbl_doctor_run", "Run Doctor");
     btnRun.addEventListener("click", function () {
         var out = document.getElementById("doctor-output");
-        if (out) out.textContent = "Running...";
+        if (out) out.textContent = lbl("lbl_status_running", "Running…");
         fetch("/api/doctor", { method: "POST" })
             .then(function (resp) { return resp.json(); })
             .then(function (data) {
                 if (out) out.textContent = JSON.stringify(data, null, 2);
             })
             .catch(function (err) {
-                if (out) out.textContent = "Error: " + err.message;
+                if (out) out.textContent = lbl("lbl_error_prefix", "Error") + ": " + err.message;
             });
     });
     card.appendChild(btnRun);
@@ -633,17 +633,17 @@ function renderSystem() {
 
     var configBtn = document.createElement("button");
     configBtn.className = "btn";
-    configBtn.textContent = "Show Config";
+    configBtn.textContent = lbl("lbl_show_config", "Show Config");
     configBtn.addEventListener("click", function () {
         var pre = document.getElementById("config-output");
-        if (pre) pre.textContent = "Loading...";
+        if (pre) pre.textContent = lbl("lbl_status_loading", "Loading…");
         fetch("/api/config")
             .then(function (resp) { return resp.json(); })
             .then(function (data) {
                 if (pre) pre.textContent = JSON.stringify(data, null, 2);
             })
             .catch(function (err) {
-                if (pre) pre.textContent = "Error: " + err.message;
+                if (pre) pre.textContent = lbl("lbl_error_prefix", "Error") + ": " + err.message;
             });
     });
     configCard.appendChild(configBtn);

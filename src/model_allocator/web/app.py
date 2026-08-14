@@ -51,7 +51,16 @@ SUPPORTED_LOCALES = [
 DEFAULT_LOCALE = "en-US"
 
 # ── App ────────────────────────────────────────────────────
-app = FastAPI(title="Model Allocator", docs_url="/api/docs")
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    _init_db()
+    yield
+
+
+app = FastAPI(title="Model Allocator", docs_url="/api/docs", lifespan=_lifespan)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
@@ -184,6 +193,10 @@ ES_TRANSLATIONS = {
     "lbl_doctor_title": "Diagnóstico Doctor",
     "lbl_doctor_run": "Ejecutar Doctor",
     "lbl_config_overview": "Resumen de configuración",
+    "lbl_status_running": "Ejecutando…",
+    "lbl_status_loading": "Cargando…",
+    "lbl_error_prefix": "Error",
+    "lbl_show_config": "Mostrar configuración",
 }
 
 DE_TRANSLATIONS = {
@@ -242,6 +255,10 @@ DE_TRANSLATIONS = {
     "lbl_doctor_title": "Doctor-Diagnose",
     "lbl_doctor_run": "Doctor ausführen",
     "lbl_config_overview": "Konfigurationsübersicht",
+    "lbl_status_running": "Wird ausgeführt…",
+    "lbl_status_loading": "Wird geladen…",
+    "lbl_error_prefix": "Fehler",
+    "lbl_show_config": "Konfiguration anzeigen",
 }
 
 
@@ -303,6 +320,10 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         ("lbl_doctor_title", "lbl_doctor_title", "main", "Doctor Diagnostics"),
         ("lbl_doctor_run", "lbl_doctor_run", "main", "Run Doctor"),
         ("lbl_config_overview", "lbl_config_overview", "main", "Config Overview"),
+        ("lbl_status_running", "lbl_status_running", "main", "Running…"),
+        ("lbl_status_loading", "lbl_status_loading", "main", "Loading…"),
+        ("lbl_error_prefix", "lbl_error_prefix", "main", "Error"),
+        ("lbl_show_config", "lbl_show_config", "main", "Show Config"),
     ]
 
     da_translations = {
@@ -361,6 +382,10 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         "lbl_doctor_title": "Doctor Diagnostik",
         "lbl_doctor_run": "Kør Doctor",
         "lbl_config_overview": "Konfiguration Oversigt",
+        "lbl_status_running": "Kører…",
+        "lbl_status_loading": "Indlæser…",
+        "lbl_error_prefix": "Fejl",
+        "lbl_show_config": "Vis konfiguration",
     }
 
     for label_id, label_key, domain, default_text in labels:
@@ -863,12 +888,6 @@ async def index():
     if html_path.exists():
         return HTMLResponse(html_path.read_text(encoding="utf-8"))
     return HTMLResponse("<h1>Model Allocator</h1><p>Template not found</p>")
-
-
-# ── Startup ────────────────────────────────────────────────
-@app.on_event("startup")
-async def startup():
-    _init_db()
 
 
 def run():
