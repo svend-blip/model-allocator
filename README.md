@@ -5,7 +5,7 @@
 > validated, and resolved* across local Ollama, llama.cpp (TurboQuant), cloud
 > OpenAI-compatible APIs, and Minimax.
 
-Status: **V1A → V5, fully built and live-validated.** 95 tests. All
+Status: **V1A → V5, fully built and live-validated.** 195 tests. All
 adapters validated against real backends. Wired into the Father WebUI,
 including a full config dashboard (alias/role CRUD). V5 adds ONYX as an
 OPTIONAL invoke-only knowledge runtime + a generic headless client that
@@ -83,6 +83,8 @@ Backend adapters  → concrete runtime commands (Ollama, llama.cpp, cloud, …)
 | `ollama` | Local Ollama | warm via `/api/generate` + keep_alive | `ollama stop <model>` | `ollama ps` / API | num_ctx per-request (informational) |
 | `llama_cpp` | llama-server (TurboQuant build) | spawn `llama-server` with full flag set + PID file + free/configured port + `/health` polling | kill PID (timeout) | `/health` + PID alive | `--ctx-size`, `--n-cpu-moe` (MoE) / `--n-gpu-layers` (dense), `--cache-type-k/v`, `--flash-attn`, `--tensor-split`, … |
 | `openai_compatible` | Cloud OpenAI-compatible | validate only | no-op | API reachability | model max context |
+| `sglang` | SGLang server (venv) | spawn `python -m sglang.launch_server` + health polling + VRAM settle | kill PID (timeout) | health + PID alive | `--context-length`, venv/model_path from runtime profile |
+| `anthropic` | Anthropic API / Claude subscription | no-op (hosted) | no-op | credentials presence (`ANTHROPIC_API_KEY` or Claude Code login) | model max context |
 | `onyx` | ONYX assistants (optional) | no-op (docker compose owns lifecycle) | no-op | `/health` + credentials | invoke-only: one-shot chat with citations |
 
 ### Context handling — ollama vs llama.cpp
@@ -117,6 +119,8 @@ permanently until restarted.
 |----------|----------|--------------|
 | `opencode` | `opencode` TUI | `ollama/<model>`, `openrouter/<model>`, bare Minimax id, `<provider>/<model_id>` for llama.cpp |
 | `claude_code` | `claude` TUI | `claude --model <model>` (valid flag on Claude Code, unlike OpenCode) |
+| `pi` | `pi` TUI | built-in provider ids, or custom providers declared in Pi's `models.json` |
+| `freebuff` | Freebuff frontend | alias resolved through the freebuff wrapper (cloud_llm flow) |
 | `headless` | allocator runner loop | any invoke-capable alias — pasted tmux prompt -> invoke() -> answer in pane + InvokeResult JSON file |
 
 ### Client/backend matrix
@@ -387,7 +391,7 @@ pip install -e .                      # pyyaml is the only dependency
 python3 -m model_allocator --help
 python3 -m model_allocator list --client opencode
 python3 -m model_allocator validate --alias imple01-local --client opencode
-python3 -m pytest tests/              # 69 tests (unittest + pytest style)
+python3 -m pytest tests/              # 195 tests (unittest + pytest style)
 ```
 
 For a local TurboQuant llama.cpp setup:
