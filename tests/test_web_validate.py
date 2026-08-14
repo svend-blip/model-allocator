@@ -23,6 +23,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import yaml
 from fastapi.testclient import TestClient
@@ -76,6 +77,14 @@ CONFIG = {
 
 class WebValidateEndpointTests(unittest.TestCase):
     def setUp(self) -> None:
+        # These tests pin CLIENT COMPATIBILITY, not credentials. The
+        # anthropic path warns when ANTHROPIC_API_KEY is absent — and this
+        # machine deliberately unsets it (the allocator launches clients
+        # with `env -u`) — so the key is stubbed to keep the suite about
+        # what it claims to measure.
+        self._env = mock.patch.dict(
+            "os.environ", {"ANTHROPIC_API_KEY": "test-key-not-real"})
+        self._env.start()
         self._tmp = tempfile.TemporaryDirectory(prefix="alloc-web-")
         cfg_dir = Path(self._tmp.name)
         (cfg_dir / "models.yaml").write_text(
@@ -95,6 +104,7 @@ class WebValidateEndpointTests(unittest.TestCase):
     def tearDown(self) -> None:
         web_app.CONFIG_DIR = self._previous_config_dir
         self._tmp.cleanup()
+        self._env.stop()
 
     def _validate(self, alias: str, body: dict | None = None) -> dict:
         return self.client.post(

@@ -11,7 +11,6 @@ import os
 from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import ollama as ollama_adapter
 from model_allocator.adapters import openai_compatible as openai_adapter
-from model_allocator.adapters import sglang as sglang_adapter
 from model_allocator.resolver import ResolutionError, Resolver
 
 
@@ -244,16 +243,11 @@ class Validator:
         lines = [result["validation_status"]]
         lines.append(f"Logical model: {result['logical_model_alias']}")
         lines.append(f"Backend: {result.get('resolved_backend') or 'N/A'}")
-        lines.append(f"Runtime: local")
         lines.append(f"Real model: {result.get('resolved_real_model') or 'N/A'}")
         lines.append(f"API base: {result.get('resolved_api_base') or 'N/A'}")
         lines.append("Client support:")
         for c, status in result.get("client_support", {}).items():
             lines.append(f"  {c}: {status}")
-        lines.append("Lifecycle:")
-        lines.append("  start: OK")
-        lines.append("  stop: OK")
-        lines.append("  unload: OK")
         lines.append(f"Context: {result.get('resolved_context') or result.get('context') or 'N/A'}")
         lines.append(f"GPU policy: {result.get('resolved_gpu') or result.get('gpu') or 'N/A'}")
         warnings = result.get("warnings", [])
