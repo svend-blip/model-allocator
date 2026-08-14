@@ -257,8 +257,8 @@ models:
       claude-code: true
 
   # GLM-4.5-Air-Derestricted for reveng's Rev_Supervisor, through OpenCode.
-  # The only local model in that flow: Rev_Imple and Rev_Review are hosted, so
-  # this alias is the one thing dispatch loads and unloads there.
+  # Since 2026-08-14 Rev_Imple runs locally too (qwen35-uncensored-local), so
+  # dispatch swaps between the two at every supervisor<->imple handoff.
   #
   # The GGUF is mradermacher's byte-split (`.gguf.part1of2` / `part2of2`), NOT
   # llama.cpp's split-GGUF format -- part2 carries no GGUF header, so the
@@ -268,10 +268,12 @@ models:
   # it. Naming it `-00001-of-00002.gguf` would NOT work: that would make
   # llama.cpp look for shards that were never produced.
   #
-  # Port 8080 is shared with laguna-local on purpose. Both are stop_after_step
-  # and never wanted at once, and a shared port fails loudly on bind if one is
-  # still resident. Distinct ports would let both load and quietly starve the
-  # card instead.
+  # Port 8080 is shared with laguna-local AND qwen35-uncensored-local on
+  # purpose. All are stop_after_step and never wanted at once, and a shared
+  # port fails loudly on bind if one is still resident. Distinct ports would
+  # let two load and quietly starve the card instead — proven live on
+  # 2026-08-14, when qwen35 (then on 8081) held the card while GLM's warm
+  # OOM'ed silently at two reveng verdict deliveries.
   glm-air-derestricted-local:
     runtime_profile: local_llamacpp_cuda0
     real_model: glm-4.5-air-derestricted
@@ -334,7 +336,11 @@ models:
     server_bin_path: ${LLAMA_SERVER_BIN}
     model_path: ${MODEL_ROOT_GGUF}/Qwen3.5-35B-A3B-Uncensored-Q6_K/Qwen3.5-35B-A3B-Uncensored-HauhauCS-Aggressive-Q6_K.gguf
     opencode_provider_name: qwen35-local
-    port: 8081
+    # 8080 on purpose — the shared one-at-a-time port (see the glm-air block
+    # above). On its own 8081 this model could sit resident while GLM's warm
+    # OOM'ed silently into the remaining VRAM (2026-08-14); on 8080 the
+    # second server fails loudly on bind instead.
+    port: 8080
     # 131072 OOM'ed on the 32 GB card (weights 28.5 GB + q8_0 KV cache +
     # ComfyUI's resident ~3.8 GB), and 65536 with full offload was 244 MiB
     # short. Two expert layers on CPU keep the Human's 65536 context with
