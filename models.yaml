@@ -326,3 +326,31 @@ models:
     lifecycle_policy: cloud_noop
     clients:
       freebuff: true
+
+  qwen35-uncensored-local:
+    runtime_profile: local_llamacpp_cuda0
+    real_model: qwen35-a3b-uncensored
+    display_name: Qwen3.5-35B-A3B-Uncensored (Q6_K)
+    server_bin_path: ${LLAMA_SERVER_BIN}
+    model_path: ${MODEL_ROOT_GGUF}/Qwen3.5-35B-A3B-Uncensored-Q6_K/Qwen3.5-35B-A3B-Uncensored-HauhauCS-Aggressive-Q6_K.gguf
+    opencode_provider_name: qwen35-local
+    port: 8081
+    # 131072 OOM'ed on the 32 GB card (weights 28.5 GB + q8_0 KV cache +
+    # ComfyUI's resident ~3.8 GB), and 65536 with full offload was 244 MiB
+    # short. Two expert layers on CPU keep the Human's 65536 context with
+    # ~1.6 GB headroom at 201 tok/s (measured 2026-08-14; full offload at
+    # 49152 gave 256 tok/s but only ~0.6 GB headroom — Human chose this).
+    context: 65536
+    n_cpu_moe: 2
+    max_output_tokens: 16384
+    lifecycle_policy: stop_after_step
+    temp: 0.6
+    cache_type_k: q8_0
+    cache_type_v: q8_0
+    flash_attn: 'on'
+    gpu_layers: 99
+    jinja: true
+    parallel: 1
+    clients:
+      opencode: true
+      pi: true

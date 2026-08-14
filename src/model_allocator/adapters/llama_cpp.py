@@ -137,6 +137,8 @@ class LlamaCppAdapter:
             argv += ["--cache-type-v", str(flags["cache_type_v"])]
         if "flash_attn" in flags:
             argv += ["--flash-attn", str(flags["flash_attn"])]
+        if "temp" in flags:
+            argv += ["--temp", str(flags["temp"])]
         if "reasoning" in flags:
             argv += ["--reasoning", str(flags["reasoning"])]
         if "reasoning_budget" in flags:

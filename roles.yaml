@@ -190,10 +190,10 @@ roles:
   # it down and rebuilding it. The two roles never run concurrently, which is
   # what makes one llama.cpp slot enough.
   Rev_Imple:
-    default_alias: glm-air-derestricted-local
+    default_alias: qwen35-uncensored-local
     config_dir: Rev_Imple
     client_aliases:
-      opencode: glm-air-derestricted-local
+      opencode: qwen35-uncensored-local
 
   Rev_Review:
     default_alias: sonnet5
