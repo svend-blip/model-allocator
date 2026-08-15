@@ -93,9 +93,12 @@ def test_lint_config_shapes():
         "aliases": {"a": {"runtime_profile": "local_ollama", "real_model": "m"}},
         "profiles": PROFILES,
         "roles": {"r": {"default_alias": "a", "config_dir": "r"}},
+        "runtime_instances": {},
+        "inference_profiles": {},
     }
     report = schema.lint_config(raw)
-    assert report == {"aliases": {}, "profiles": {}, "roles": {}}
+    assert report == {"aliases": {}, "runtime_instances": {},
+                      "inference_profiles": {}, "profiles": {}, "roles": {}}
     raw["aliases"]["bad"] = {"runtime_profile": "ghost"}
     report = schema.lint_config(raw)
     assert "bad" in report["aliases"]

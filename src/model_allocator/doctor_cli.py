@@ -21,7 +21,8 @@ def cmd_doctor(args) -> int:
     total_errors = 0
     total_warnings = 0
 
-    for section in ("aliases", "profiles", "roles"):
+    for section in ("aliases", "runtime_instances", "inference_profiles",
+                    "profiles", "roles"):
         for name, issues in report.get(section, {}).items():
             for issue in issues:
                 if issue.level == "error":
@@ -32,7 +33,8 @@ def cmd_doctor(args) -> int:
     if getattr(args, "json", False):
         # JSON output
         json_report = {}
-        for section in ("aliases", "profiles", "roles"):
+        for section in ("aliases", "runtime_instances", "inference_profiles",
+                        "profiles", "roles"):
             json_report[section] = {}
             for name, issues in report.get(section, {}).items():
                 json_report[section][name] = [
@@ -51,7 +53,8 @@ def cmd_doctor(args) -> int:
             if total_warnings:
                 print(f"⚠  {total_warnings} warning(s)")
             print()
-            for section in ("aliases", "profiles", "roles"):
+            for section in ("aliases", "runtime_instances", "inference_profiles",
+                            "profiles", "roles"):
                 for name, issues in report.get(section, {}).items():
                     print(f"[{section}] {name}:")
                     for issue in issues:

@@ -81,6 +81,13 @@ def load_config(config_dir: Path | str | None = None) -> dict:
       models.yaml / models.json
       roles.yaml / roles.json
       runtime_profiles.yaml / runtime_profiles.json
+
+    V6 also reads two optional top-level sections inside ``models.yaml``:
+    ``runtime_instances`` (one entry = one physical serving process that
+    several aliases may share) and ``inference_profiles`` (per-alias
+    inference tuning referenced by aliases). They live in models.yaml
+    alongside the existing ``models:`` section; the schema linter enforces
+    field ownership so they cannot collide with what an alias declares.
     """
     config_dir = Path(config_dir) if config_dir else Path.cwd()
 
@@ -91,12 +98,14 @@ def load_config(config_dir: Path | str | None = None) -> dict:
                 return resolve_env(load_file(path)) or {}
         return {}
 
-    models = load("models").get("models", {})
+    models_doc = load("models")
     runtime_profiles = load("runtime_profiles").get("runtime_profiles", {})
     roles = load("roles").get("roles", {})
 
     return {
-        "models": models,
+        "models": models_doc.get("models", {}),
         "runtime_profiles": runtime_profiles,
         "roles": roles,
+        "runtime_instances": models_doc.get("runtime_instances", {}) or {},
+        "inference_profiles": models_doc.get("inference_profiles", {}) or {},
     }

@@ -5,12 +5,15 @@
 > validated, and resolved* across local Ollama, llama.cpp (TurboQuant), cloud
 > OpenAI-compatible APIs, and Minimax.
 
-Status: **V1A → V5, fully built and live-validated.** 195 tests. All
+Status: **V1A → V6, fully built and live-validated.** 279 tests. All
 adapters validated against real backends. Wired into the Father WebUI,
 including a full config dashboard (alias/role CRUD). V5 adds ONYX as an
 OPTIONAL invoke-only knowledge runtime + a generic headless client that
 turns any invoke-capable API runtime into a bridgeV002 role with zero
-bridge changes.
+bridge changes. V6 adds a shared foundation runtime: one physical
+serving process may be shared by several aliases, with recorded
+instance identity driving lifecycle and per-alias inference profiles
+riding the existing backend/client transport paths.
 
 ---
 
@@ -130,6 +133,160 @@ permanently until restarted.
 
 ---
 
+## Runtime instances (V6)
+
+A **runtime instance** is one physical serving process (one llama-server,
+one SGLang process) that several logical aliases may share. The instance
+owns physical identity — port, model path, context, placement, KV cache,
+server binary — and the alias owns the logical DPMtF-facing name plus
+its `runtime_instance` reference and its `inference_profile` reference.
+
+### Field ownership — exclusive
+
+| Field | Owner | Why |
+|-------|-------|-----|
+| `model_path`, `model_name`, `server_bin_path`, `port`, `host`, `context`, `n_cpu_moe`, `gpu_layers`, `cache_type_k`, `cache_type_v`, `runtime_profile` | **runtime_instance** | Physical identity. Lives for the lifetime of the process. |
+| `runtime_instance`, `inference_profile` | **alias** | Logical references. An alias may declare both, one, or neither. |
+| `clients`, `display_name`, `opencode_*`, `claude_*`, `pi_*`, `invoke_timeout`, `lifecycle_policy` | **alias** | Logical, role-facing config. |
+
+**Conflict rule:** an alias bound to a `runtime_instance` MUST NOT also
+set any instance-owned field. The schema linter and the resolver both
+fail loudly with a message naming the alias, the instance, and the
+field. The V6 contract forbids silent precedence between the two.
+
+### Shared lifecycle (recorded instance identity)
+
+A V6 instance-bound alias starts its process once, then reuses the
+recorded instance for every subsequent alias that points at the same
+instance:
+
+- **First alias start** spawns the server and writes a JSON state file
+  `model-allocator-instance-<name>.json` recording `{instance_name,
+  pid, port, started_by_alias, started_at}`. The decision to spawn is
+  *only* from the absence of a recorded state — never from "port open"
+  or "model path matches".
+- **Second alias start** finds the recorded state, verifies the PID is
+  alive, waits for the health endpoint, and returns `reused: true`
+  without spawning. No kill, no port scan, no adoption.
+- **Alias-level `stop` / `unload`** on an instance-bound alias is a
+  no-op (`stopped: true, skipped: true, reason: "instance-bound runtime
+  is shared; stop via stop-instance"`). The state file survives.
+- **`stop --all-servers`** skips instance-bound aliases and surfaces
+  them in its JSON output with `skipped: true`.
+- **Step-completion never auto-stops a `shared_runtime` instance.** The
+  contract forbids it.
+
+### Managed-only ownership
+
+The allocator stops only processes it started and recorded. The
+ownership decision is keyed on the recorded PID, not on whatever happens
+to be listening on the port:
+
+- A foreign (unrecorded) llama-server on the instance port —
+  refused, never signalled, never adopted. The `start` returns
+  `error: "port N for instance <name> is occupied by an unmanaged
+  llama-server (pid=…); refusing to adopt — stop it manually if you
+  want the allocator to manage it"`.
+- An unknown (non-llama-server) process on the instance port — refused
+  with the same shape.
+- Stale state (recorded PID dead) is cleaned up before the ownership
+  check runs. A foreign listener on the port is still never killed —
+  adopting it would be the failure mode the contract forbids.
+
+### Instance-level CLI (V6)
+
+Three commands operate directly on a runtime instance by name,
+bypassing alias resolution. They are the only ways to terminate a
+shared runtime:
+
+```
+model-allocator start-instance   --name <ri> [--timeout S]
+model-allocator status-instance  --name <ri>
+model-allocator stop-instance    --name <ri> [--timeout S]
+```
+
+`status-instance` reports the same `instance_name`, `pid`, `port` as
+`status` does for any sharing alias — one canonical record per
+instance. The CLI handlers are wired for `llama_cpp` and `sglang`
+backends (the two local-server backends); cloud/ollama/anthropic/onyx
+aliases reject the instance-level verb with a clear error.
+
+---
+
+## Inference profiles (V6)
+
+An **inference_profile** is a per-alias tuning block that rides on
+*existing* backend/client transport paths. Aliases reference one via
+`inference_profile: <name>`. The profile is a separate top-level
+key in `models.yaml` alongside `models:`, `runtime_instances:`, and
+`roles:`.
+
+```yaml
+inference_profiles:
+  profile-careful:
+    reasoning_budget: 4096
+    max_output_tokens: 16384
+  profile-fast:
+    reasoning_budget: 1024
+    max_output_tokens: 8192
+```
+
+### Implemented fields and their transport
+
+| Field | Transport path | Where it lands |
+|-------|----------------|----------------|
+| `max_output_tokens` | Resolver merge → opencode `model.<id>.limit.output`, claude_code `CLAUDE_CODE_MAX_OUTPUT_TOKENS` env, pi `models.json` `maxTokens`, `cmd run --max-output-tokens` CLI override | Every client adapter that supports an output budget |
+| `reasoning_budget` | Resolver merge → llama-server argv `--reasoning-budget N` | llama.cpp adapter flag rendering |
+
+The transport rides the existing resolver merge — the only place
+inference-profile fields land is the resolved view, which the adapters
+already read. No new parameter-transport abstraction, no generic
+passthrough.
+
+### Precedence rule
+
+`profile` is the default tuning. An alias-level field
+(e.g. `max_output_tokens: 4096` on the alias) wins over the profile.
+The `cmd run --max-output-tokens <N>` CLI override wins over both
+(the override is applied to the resolved view after `resolve_alias`
+returns). Concretely: the merge order in `resolve_alias` is
+`instance → profile → alias` (`alias` last, so it overrides), and the
+CLI override is applied after the merge.
+
+### Deferred fields — loud rejection
+
+`temperature` and `top_p` are part of the four candidate fields but
+have no existing transport path in V6. Declaring them in a profile
+would silently do nothing, which the Mission Contract forbids. Both
+fields are **loudly rejected**:
+
+- The doctor (`model-allocator doctor`) reports an error of the form
+  `inference_profile '<name>' field '<field>' is not implemented in
+  V6 (deferred) — remove it`.
+- `resolve_alias` raises `ResolutionError` with the same message, so a
+  programmatic caller that skips the doctor still fails loudly.
+
+Unknown fields are an error too (the schema knows precisely the
+implemented + deferred candidate set).
+
+### Deferred / reserved (documentation only)
+
+Two features are reserved for a future allocator version and are
+**not** implemented in V6:
+
+- The **`adopted` ownership mode** — a foreign llama-server could be
+  adopted by the allocator so the allocator may stop it. V6 only
+  manages processes it started. Documented here only; do not set
+  `adopted` in any config.
+- The **`adapter:` alias key** (LoRA adapter selection). Reserved
+  to avoid a future config-rewrite; declaring it raises a schema
+  warning today (unknown field), an error in the future. No alias
+  declaration should set it.
+
+---
+
+
+
 ## CLI
 
 ```
@@ -152,6 +309,9 @@ model-allocator config delete-role  --name <role>
 model-allocator invoke   --alias <alias> [--prompt <p>|-] [--persona N] [--timeout S]
 model-allocator headless --alias <alias> [--output-dir D] [--idle-seconds F]
 model-allocator mcp-serve [--alias <alias>] [--host H] [--port 9164]
+model-allocator start-instance  --name <ri> [--timeout S]      # V6
+model-allocator status-instance --name <ri>                    # V6
+model-allocator stop-instance   --name <ri> [--timeout S]      # V6
 ```
 
 Run via `python3 -m model_allocator <command>` (dev) or the `scripts/model-allocator`
@@ -264,8 +424,51 @@ roles:
 |--------|----------|
 | `persistent` | keep model warm/running |
 | `stop_after_step` | stop/unload after the step is done |
-| `shared_runtime` | leave running (shared by multiple roles/steps) |
+| `shared_runtime` (V6) | leave running; reuse via recorded instance identity across all sharing aliases; only `stop-instance --name <ri>` may terminate it |
 | `cloud_noop` | cloud backend; no local start/stop |
+
+### Runtime instances (V6 config surface)
+
+Two new top-level sections in `models.yaml` declare the shared
+runtime:
+
+```yaml
+runtime_instances:
+  shared-llm-118b:
+    runtime_profile: local_llamacpp_cuda0
+    model_path: ${MODEL_ROOT_GGUF}/Laguna-S-2.1-118B-A8B-IQ4_XS.gguf
+    server_bin_path: ${LLAMA_SERVER_BIN}
+    port: 8090                     # NOT 8080: see note below
+    context: 262144
+    n_cpu_moe: 31
+    gpu_layers: 99
+    cache_type_k: q4_0
+    cache_type_v: q4_0
+    lifecycle_policy: shared_runtime
+
+inference_profiles:
+  profile-careful:
+    reasoning_budget: 4096
+    max_output_tokens: 16384
+  profile-fast:
+    reasoning_budget: 1024
+    max_output_tokens: 8192
+```
+
+An alias declares its references (V6 keys are optional on the alias):
+
+```yaml
+shared-architect:
+  runtime_instance: shared-llm-118b
+  inference_profile: profile-careful
+  clients: {opencode: true}
+```
+
+The dedicated port must be **non-8080**: 8080 is the machine's
+deliberate one-at-a-time port (the trade-engine reclaim sweeps it
+weekdays 14:00Z), and a shared instance needs its own dedicated port
+to coexist. The example above uses 8090; pick whatever port is free
+on your machine, but never 8080.
 
 ---
 
@@ -391,7 +594,7 @@ pip install -e .                      # pyyaml is the only dependency
 python3 -m model_allocator --help
 python3 -m model_allocator list --client opencode
 python3 -m model_allocator validate --alias imple01-local --client opencode
-python3 -m pytest tests/              # 195 tests (unittest + pytest style)
+python3 -m pytest tests/              # 279 tests (unittest + pytest style)
 ```
 
 For a local TurboQuant llama.cpp setup:
@@ -431,18 +634,19 @@ model-allocator/
   pyproject.toml                     (pyyaml dep; entry point model-allocator)
   scripts/model-allocator            (PATH wrapper)
   src/model_allocator/
-    cli.py                           (12 commands incl. the config subcommand group)
+    cli.py                           (CLI incl. the config subcommand group + V6 instance commands)
     config_loader.py                 (YAML config loading + merge)
     config_writer.py                 (validated safe write for aliases/roles; atomic temp + rename)
     invoke_result.py                 (V5: generic InvokeResult envelope)
     headless.py                      (V5B: runner loop — stdin framing, invoke, output files)
     mcp_server.py                    (V5C: onyx-mcp tools; optional 'mcp' extra)
-    resolver.py                      (alias → backend/model/flags; generic field merge)
+    resolver.py                      (alias → backend/model/flags; V6 reference resolution + field-ownership merge)
+    schema.py                        (doctor + config validation; V6: runtime_instances / inference_profiles)
     validator.py                     (§10.1 checks + §10.2 output)
     renderer.py                      (tmux-safe shell string)
     adapters/
       ollama.py                      (local Ollama: status/availability/start/stop)
-      llama_cpp.py                   (llama-server: start/stop/status, PID/port/health, full flag set)
+      llama_cpp.py                   (llama-server: start/stop/status, PID/port/health, full flag set; V6 instance-keyed state)
       openai_compatible.py           (cloud: validate/reachability)
       opencode.py                    (OpenCode client: run + render-config + provider block)
       claude_code.py                 (Claude Code client: run + env)
@@ -453,6 +657,10 @@ model-allocator/
     test_v2.py                       (V2/V2.1/V2.2: adapters + render-config merge + resolver field-preservation)
     test_config_writer.py            (V4: validated write layer)
     test_config_cli.py               (V4: config subcommands)
+    test_v6_shared_runtime.py        (V6: schema + resolver + parity — Father fixture)
+    test_v6_instance_lifecycle.py    (V6: start-once / reuse-by-identity / managed-only ownership)
+    test_v6_inference_profile_transport.py  (V6: profile fields ride existing transport paths)
+    test_v6_worker_parity.py         (V6: same machinery on a worker-style config)
 ```
 
 ---
@@ -476,6 +684,7 @@ model-allocator/
 | V5C | onyx-mcp: `mcp-serve` with onyx_answer/onyx_status tools (optional `mcp` extra) | `8c971a5` |
 | V5.1 | Claude Code env equivalence: max_output_tokens, adaptive thinking, active model, binary+extra-args, `--max-output-tokens` passthrough | `e08d825` |
 | V5.2 | SGLang adapter + Laguna (llama.cpp) config + `llama_SG` flow support: auto-start in `run`, `--no-auto-start`, `server_bin_path`, `--jinja`/`--load-mode`/`--reasoning-budget` flags, process-group kill for SGLang, `ANTHROPIC_API_KEY` blanking in Ollama/llama_cpp backends | `6ed84b3` |
+| V6 | Shared foundation runtime: `runtime_instances` (one physical process per instance), `inference_profiles` (per-alias tuning — `max_output_tokens` / `reasoning_budget` implemented, `temperature` / `top_p` deferred with loud rejection), `shared_runtime` lifecycle (start-once / reuse-by-identity, never auto-stopped), managed-only ownership (no foreign-port kill, no adoption), `start-instance` / `status-instance` / `stop-instance` CLI; 279 tests | run 016 |
 
 ### Live validation
 
@@ -518,6 +727,13 @@ model-allocator/
 - Only one large model (Laguna 23.5 GB or SGLang/Qwen 17 GB) fits in the
   RTX 5090's 32 GB VRAM at a time. The `llama_SG` flow handles this via
   pre/post-dispatch scripts that stop one server before starting the other.
+- **V6 — `adopted` ownership mode** is reserved for a future allocator
+  version. The allocator will not adopt a foreign llama-server on the
+  instance port; it only manages processes it started and recorded. Stop
+  the foreign server manually if you want the allocator to take over.
+- **V6 — `adapter:` alias key** (LoRA adapter selection) is reserved for
+  a future allocator version. The schema accepts it as a warning today
+  (unknown field). Do not declare it on any alias.
 
 ## OpenCode external-directory permissions
 

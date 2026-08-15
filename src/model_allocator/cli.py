@@ -378,10 +378,16 @@ def _stop_all_local_servers(args: argparse.Namespace) -> int:
     LightWorkers (which run their own allocator) are never touched. The
     purpose is VRAM reclaim: a resident llama.cpp/SGLang server holds the
     GPU until someone stops it.
+
+    Aliases bound to a runtime_instance are skipped: they share one
+    process, and stopping it under another alias would violate the
+    managed-only ownership rule. Use ``stop-instance --name <ri>`` to
+    stop a shared runtime deterministically.
     """
     resolver = Resolver(config_dir=_config_dir(args))
     results = []
     seen_ports: set = set()
+    seen_instance_ports: set = set()
     exit_code = EXIT_OK
     for alias in resolver.list_aliases():
         try:
@@ -393,6 +399,28 @@ def _stop_all_local_servers(args: argparse.Namespace) -> int:
             continue
         backend = resolved.get("backend")
         if backend not in LOCAL_SERVER_BACKENDS:
+            continue
+        if resolved.get("runtime_instance"):
+            # Shared instance — never stop via alias-level sweep. The
+            # caller must use stop-instance.
+            port = resolved.get("port")
+            if port is not None and port in seen_instance_ports:
+                results.append({
+                    "alias": alias, "backend": backend, "port": port,
+                    "skipped": True,
+                    "instance_name": resolved["runtime_instance"],
+                    "reason": "shared_runtime; stop via stop-instance",
+                })
+                continue
+            if port is not None:
+                seen_instance_ports.add(port)
+            results.append({
+                "alias": alias, "backend": backend,
+                "port": resolved.get("port"),
+                "instance_name": resolved["runtime_instance"],
+                "skipped": True,
+                "reason": "shared_runtime; stop via stop-instance",
+            })
             continue
         try:
             adapter = _get_backend_adapter(resolved)
@@ -498,6 +526,88 @@ def cmd_unload(args: argparse.Namespace) -> int:
 
     print(json.dumps(result, indent=2, default=str))
     if result.get("stopped") or result.get("unloaded"):
+        return EXIT_OK
+    return EXIT_ERROR
+
+
+def cmd_start_instance(args: argparse.Namespace) -> int:
+    """Start (or reuse) a runtime instance directly by name.
+
+    Bypasses alias resolution so the operation targets the physical
+    shared runtime the aliases point at. Reuse is governed entirely by
+    the recorded instance state.
+    """
+    resolver = Resolver(config_dir=_config_dir(args))
+    try:
+        resolved = resolver.resolve_instance(args.name)
+    except ResolutionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    try:
+        adapter = _get_backend_adapter(resolved)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    backend = resolved.get("backend")
+    if backend not in ("llama_cpp", "sglang"):
+        print(f"ERROR: instance-level start is only supported for "
+              f"local-server backends (llama_cpp, sglang), got '{backend}'",
+              file=sys.stderr)
+        return EXIT_ERROR
+
+    result = adapter.start(timeout=args.timeout)
+    print(json.dumps(result, indent=2, default=str))
+    if result.get("started"):
+        return EXIT_OK
+    return EXIT_ERROR
+
+
+def cmd_status_instance(args: argparse.Namespace) -> int:
+    """Report runtime instance status by name (instance-direct)."""
+    resolver = Resolver(config_dir=_config_dir(args))
+    try:
+        resolved = resolver.resolve_instance(args.name)
+    except ResolutionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    try:
+        adapter = _get_backend_adapter(resolved)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    report = adapter.status()
+    print(json.dumps(report, indent=2, default=str))
+    if report.get("running"):
+        return EXIT_OK
+    return EXIT_WARNING
+
+
+def cmd_stop_instance(args: argparse.Namespace) -> int:
+    """Stop a runtime instance directly by name (instance-direct).
+
+    Kills the recorded PID and removes the state. Only the recorded
+    PID is signalled — never a port scan.
+    """
+    resolver = Resolver(config_dir=_config_dir(args))
+    try:
+        resolved = resolver.resolve_instance(args.name)
+    except ResolutionError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    try:
+        adapter = _get_backend_adapter(resolved)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return EXIT_ERROR
+
+    result = adapter.stop_instance(timeout=args.timeout)
+    print(json.dumps(result, indent=2, default=str))
+    if result.get("stopped"):
         return EXIT_OK
     return EXIT_ERROR
 
@@ -829,6 +939,34 @@ def build_parser() -> argparse.ArgumentParser:
     p_unload.add_argument("--alias", required=True, help="Logical alias name")
     p_unload.add_argument("--timeout", type=int, default=30, help="Timeout in seconds")
     p_unload.set_defaults(func=cmd_unload)
+
+    p_start_instance = sub.add_parser(
+        "start-instance",
+        help="Start (or reuse) a runtime instance by name",
+    )
+    p_start_instance.add_argument("--name", required=True,
+                                  help="Runtime instance name")
+    p_start_instance.add_argument("--timeout", type=int, default=120,
+                                  help="Timeout in seconds")
+    p_start_instance.set_defaults(func=cmd_start_instance)
+
+    p_status_instance = sub.add_parser(
+        "status-instance",
+        help="Report runtime instance status by name",
+    )
+    p_status_instance.add_argument("--name", required=True,
+                                   help="Runtime instance name")
+    p_status_instance.set_defaults(func=cmd_status_instance)
+
+    p_stop_instance = sub.add_parser(
+        "stop-instance",
+        help="Stop a runtime instance by name (kills recorded PID, removes state)",
+    )
+    p_stop_instance.add_argument("--name", required=True,
+                                 help="Runtime instance name")
+    p_stop_instance.add_argument("--timeout", type=int, default=30,
+                                 help="Timeout in seconds")
+    p_stop_instance.set_defaults(func=cmd_stop_instance)
 
     p_preflight = sub.add_parser("preflight", help="Resolve + validate + start + reachability check")
     p_preflight.add_argument("--role", required=True, help="Role key")

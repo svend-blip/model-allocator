@@ -34,10 +34,19 @@ def _raw_load(path: Path) -> dict:
 
 
 def load_raw(config_dir: str | Path) -> dict:
-    """Load raw aliases/roles/profiles without env-var resolution."""
+    """Load raw aliases/roles/profiles without env-var resolution.
+
+    Also returns the two optional V6 top-level sections from models.yaml:
+    ``runtime_instances`` and ``inference_profiles``. Absent keys surface
+    as empty dicts so callers do not need to special-case missing files
+    or missing sections.
+    """
     d = Path(config_dir)
+    models_doc = _raw_load(_find(d, "models"))
     return {
-        "aliases": _raw_load(_find(d, "models")).get("models", {}) or {},
+        "aliases": models_doc.get("models", {}) or {},
+        "runtime_instances": models_doc.get("runtime_instances", {}) or {},
+        "inference_profiles": models_doc.get("inference_profiles", {}) or {},
         "roles": _raw_load(_find(d, "roles")).get("roles", {}) or {},
         "profiles": _raw_load(_find(d, "runtime_profiles")).get("runtime_profiles", {}) or {},
     }

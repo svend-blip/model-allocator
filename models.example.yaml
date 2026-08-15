@@ -55,8 +55,8 @@ models:
     ubatch_size: 128
     cache_type_k: turbo4
     cache_type_v: turbo3
-    flash_attn: on
-    reasoning: off
+    flash_attn: "on"
+    reasoning: "off"
     no_mmap: true
     lifecycle_policy: stop_after_step
     clients:
@@ -72,3 +72,67 @@ models:
     lifecycle_policy: cloud_noop
     clients:
       headless: true
+
+  # ─────────────────────────────────────────────────────────────
+  # V6 example — shared foundation runtime.
+  # Two aliases share one runtime_instance; the instance owns physical
+  # identity (port, model_path, context, placement, server_bin) so the
+  # aliases cannot also set those fields. Port is 8090, NOT 8080:
+  # 8080 is the machine's deliberate one-at-a-time port (qwen35/glm-air
+  # sweep it weekdays 14:00Z via the trade-engine reclaim) and a shared
+  # instance needs its own dedicated port to coexist.
+  # ─────────────────────────────────────────────────────────────
+  shared-architect:
+    runtime_instance: shared-llm-118b
+    inference_profile: profile-careful
+    clients:
+      opencode: true
+      claude-code: false
+
+  shared-reviewer:
+    runtime_instance: shared-llm-118b
+    inference_profile: profile-fast
+    clients:
+      opencode: true
+      claude-code: false
+
+
+runtime_instances:
+  # One physical llama-server process; the two aliases above resolve to it.
+  shared-llm-118b:
+    runtime_profile: local_llamacpp_cuda0
+    model_path: ${MODEL_ROOT_GGUF}/Laguna-S-2.1-118B-A8B-IQ4_XS.gguf
+    server_bin_path: ${LLAMA_SERVER_BIN}
+    port: 8090                     # NOT 8080 — see comment above the aliases.
+    context: 262144
+    n_cpu_moe: 31
+    gpu_layers: 99
+    cache_type_k: q4_0
+    cache_type_v: q4_0
+    lifecycle_policy: shared_runtime
+
+
+# Per-alias inference tuning referenced by aliases via ``inference_profile``.
+# Only the IMPLEMENTED fields are accepted; ``temperature`` and ``top_p``
+# are part of the four candidate fields but have no transport path in V6
+# and are LOUDLY rejected by the doctor and the resolver (see DEFERRED
+# FIELDS below). These do not transport system prompts or governance —
+# they tune how inference is executed for the alias that references them.
+inference_profiles:
+  profile-careful:
+    reasoning_budget: 4096
+    max_output_tokens: 16384
+
+  profile-fast:
+    reasoning_budget: 1024
+    max_output_tokens: 8192
+
+# DEFERRED FIELDS (cannot be set in V6):
+#   - temperature: no existing transport path; declaring it would
+#     silently do nothing, which the Mission Contract forbids.
+#   - top_p:       same as above.
+# The doctor reports an error of the form::
+#     "inference_profile 'profile-X' field 'temperature' is not
+#      implemented in V6 (deferred) — remove it"
+# and ``resolve_alias`` raises ``ResolutionError`` with the same message,
+# so a programmatic caller skipping the doctor still fails loudly.

@@ -33,10 +33,16 @@ def _seed(tmp_path: Path) -> Path:
 def test_load_raw_returns_three_sections(tmp_path):
     d = _seed(tmp_path)
     raw = cw.load_raw(d)
-    assert set(raw) == {"aliases", "roles", "profiles"}
+    # V6 added two optional sections to the raw load: runtime_instances
+    # and inference_profiles. Seeded files have neither, so they surface
+    # as empty dicts rather than being absent from the shape.
+    assert set(raw) >= {"aliases", "roles", "profiles",
+                        "runtime_instances", "inference_profiles"}
     assert "imple-fast" in raw["aliases"]
     assert "imple01" in raw["roles"]
     assert "local_ollama_cuda0" in raw["profiles"]
+    assert raw["runtime_instances"] == {}
+    assert raw["inference_profiles"] == {}
 
 
 def test_load_raw_does_not_resolve_env(tmp_path):

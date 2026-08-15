@@ -140,6 +140,82 @@ ROLE_FIELDS: dict[str, object] = {
 _YAML_BOOL_TRAP_FIELDS = {"flash_attn", "reasoning"}
 
 
+# V6 — runtime instance owns physical identity. An alias bound to a
+# runtime_instance MUST NOT also set any of these fields; the resolver
+# would have to pick one, and silent precedence is forbidden by contract.
+INSTANCE_OWNED_FIELDS: tuple[str, ...] = (
+    "model_path",
+    "port",
+    "context",
+    "n_cpu_moe",
+    "gpu_layers",
+    "cache_type_k",
+    "cache_type_v",
+    "runtime_profile",
+    "server_bin_path",
+)
+
+
+# V6 — runtime instance allow-list (mirrors the per-backend alias
+# shape but with the physical-identity fields an instance always owns).
+# Unknown fields stay a warning (forward compatibility), matching aliases.
+RUNTIME_INSTANCE_FIELDS: dict[str, object] = {
+    "runtime_profile": str,
+    "model_path": str,
+    "model_name": str,
+    "server_bin_path": str,
+    "port": int,
+    "host": str,
+    "context": int,
+    "n_cpu_moe": int,
+    "gpu_layers": int,
+    "cache_type_k": str,
+    "cache_type_v": str,
+    "lifecycle_policy": str,
+    "model_root_env": str,
+    "default_port": int,
+    "default_ctx": int,
+}
+
+
+# V6 — inference_profiles: split into implemented and deferred.
+# Implemented fields have a clean existing transport path and ride on it
+# (reasoning_budget -> llama-server argv, max_output_tokens -> opencode
+# limit block + claude_code env + pi models.json + CLI override). The
+# deferred fields (temperature, top_p) have NO existing transport path
+# and were accepted silently before; declaring them must now be a loud
+# validation error with a "deferred in V6" message — the contract
+# forbids silent acceptance of fields that would do nothing.
+INFERENCE_PROFILE_IMPLEMENTED_FIELDS: dict[str, object] = {
+    "reasoning_budget": int,
+    "max_output_tokens": int,
+}
+
+INFERENCE_PROFILE_DEFERRED_FIELDS: tuple[str, ...] = (
+    "temperature",
+    "top_p",
+)
+
+# Union used in error messages listing the implemented + deferred candidates.
+INFERENCE_PROFILE_KNOWN_FIELDS: tuple[str, ...] = (
+    *INFERENCE_PROFILE_IMPLEMENTED_FIELDS,
+    *INFERENCE_PROFILE_DEFERRED_FIELDS,
+)
+
+# Backward-compat alias for any caller that imported the old name. New
+# callers should prefer INFERENCE_PROFILE_IMPLEMENTED_FIELDS.
+INFERENCE_PROFILE_FIELDS: dict[str, object] = INFERENCE_PROFILE_IMPLEMENTED_FIELDS
+
+
+# Alias-owned keys that reference runtime/inference profiles. They are
+# exempt from the instance-ownership conflict rule: an alias is allowed
+# to declare its references, just not physical-identity fields.
+ALIAS_REFERENCE_KEYS: tuple[str, ...] = (
+    "runtime_instance",
+    "inference_profile",
+)
+
+
 def _is_env_ref(value) -> bool:
     """Check if a value is a string containing an env var reference."""
     if not isinstance(value, str):
@@ -181,12 +257,64 @@ def _check_type(field_name, value, expected_type, issues: list[Issue]):
         ))
 
 
-def validate_alias(alias_name: str, definition: dict, profiles: dict) -> list[Issue]:
-    """Validate a single alias definition against the schema."""
-    issues: list[Issue] = []
+def validate_alias(alias_name: str, definition: dict, profiles: dict,
+                   runtime_instances: dict | None = None,
+                   inference_profiles: dict | None = None) -> list[Issue]:
+    """Validate a single alias definition against the schema.
 
-    # runtime_profile is required
+    V6 extension: aliases may declare ``runtime_instance`` and/or
+    ``inference_profile`` references. The reference must resolve, and an
+    alias bound to a runtime_instance must NOT also set any field the
+    instance owns (model_path, port, context, n_cpu_moe, gpu_layers,
+    cache_type_k, cache_type_v, runtime_profile, server_bin_path) —
+    the contract forbids silent precedence between the two.
+    """
+    issues: list[Issue] = []
+    runtime_instances = runtime_instances or {}
+    inference_profiles = inference_profiles or {}
+
+    # V6 reference checks first: both refs are independent of the
+    # runtime_profile requirement below, so unknown refs surface as their
+    # own errors instead of being hidden by an early return.
+    instance_name = definition.get("runtime_instance")
+    if instance_name is not None:
+        if instance_name not in runtime_instances:
+            issues.append(Issue(
+                "error", "runtime_instance",
+                f"alias '{alias_name}' references unknown runtime_instance "
+                f"'{instance_name}'"
+            ))
+
+    inference_profile_name = definition.get("inference_profile")
+    if inference_profile_name is not None:
+        if inference_profile_name not in inference_profiles:
+            issues.append(Issue(
+                "error", "inference_profile",
+                f"alias '{alias_name}' references unknown inference_profile "
+                f"'{inference_profile_name}'"
+            ))
+
+    # Field-ownership check (only meaningful when the reference resolves;
+    # a dangling reference already surfaced above and will still trip the
+    # resolver later, but the schema here reports it on its own terms).
+    if instance_name is not None and instance_name in runtime_instances:
+        instance = runtime_instances[instance_name]
+        for owned in INSTANCE_OWNED_FIELDS:
+            if owned in definition:
+                issues.append(Issue(
+                    "error", owned,
+                    f"alias '{alias_name}' is bound to runtime_instance "
+                    f"'{instance_name}' and must not also set '{owned}' "
+                    f"(owned by the instance)"
+                ))
+
+    # runtime_profile is required UNLESS the alias is bound to a runtime
+    # instance that provides one — in which case the alias must NOT have
+    # one (enforced by the ownership check above).
     profile_name = definition.get("runtime_profile")
+    if not profile_name:
+        if instance_name is not None and instance_name in runtime_instances:
+            profile_name = runtime_instances[instance_name].get("runtime_profile")
     if not profile_name:
         issues.append(Issue("error", "runtime_profile", "runtime_profile is required"))
         return issues
@@ -212,11 +340,24 @@ def validate_alias(alias_name: str, definition: dict, profiles: dict) -> list[Is
     for key, val_type in PROFILE_FIELDS.items():
         if key not in allow_list:
             allow_list[key] = val_type
+    # V6 reference keys are accepted on the alias.
+    for key in ALIAS_REFERENCE_KEYS:
+        if key not in allow_list:
+            allow_list[key] = str
 
     # Check each field in the definition
     for field_name, value in definition.items():
         if field_name in ("runtime_profile",):
             continue  # already checked
+        if field_name in ALIAS_REFERENCE_KEYS:
+            # The reference itself was checked above; just type-check.
+            if not isinstance(value, str):
+                issues.append(Issue(
+                    "error", field_name,
+                    f"field '{field_name}' must be a string, got "
+                    f"{type(value).__name__}"
+                ))
+            continue
         if field_name in allow_list:
             expected_type = allow_list[field_name]
             _check_type(field_name, value, expected_type, issues)
@@ -226,20 +367,94 @@ def validate_alias(alias_name: str, definition: dict, profiles: dict) -> list[Is
                 f"unknown field '{field_name}' on alias '{alias_name}'"
             ))
 
-    # Backend-specific required fields
+    # Backend-specific required fields (only meaningful when the alias
+    # itself declares the backend-binding fields — an instance-bound alias
+    # is exempt because the instance owns them).
+    has_instance = (instance_name is not None
+                    and instance_name in runtime_instances)
     if backend == "ollama":
         if "real_model" not in definition or not definition.get("real_model"):
             issues.append(Issue("error", "real_model",
                                 "ollama backend requires real_model"))
     elif backend == "llama_cpp":
-        if not definition.get("model_path") and not definition.get("model_name"):
+        if not has_instance and not definition.get("model_path") \
+                and not definition.get("model_name"):
             issues.append(Issue("error", "model_path",
                                 "llama_cpp backend requires model_path or model_name"))
     elif backend == "sglang":
-        if not definition.get("model_path"):
+        if not has_instance and not definition.get("model_path"):
             issues.append(Issue("error", "model_path",
                                 "sglang backend requires model_path"))
 
+    return issues
+
+
+def validate_runtime_instance(instance_name: str, definition: dict) -> list[Issue]:
+    """Validate a single runtime_instance definition (V6).
+
+    Field ownership is exclusive: the instance owns physical identity,
+    but the linter does not enforce required fields here — an instance
+    referencing ``runtime_profile`` lets that profile supply the
+    backend-specific required fields. Unknown fields stay a warning
+    (forward compatibility), matching alias validation.
+    """
+    issues: list[Issue] = []
+    if not isinstance(definition, dict):
+        issues.append(Issue(
+            "error", instance_name,
+            f"runtime_instance '{instance_name}' must be a mapping"
+        ))
+        return issues
+
+    for field_name, value in definition.items():
+        if field_name in RUNTIME_INSTANCE_FIELDS:
+            expected_type = RUNTIME_INSTANCE_FIELDS[field_name]
+            _check_type(field_name, value, expected_type, issues)
+        else:
+            issues.append(Issue(
+                "warning", field_name,
+                f"unknown field '{field_name}' on runtime_instance "
+                f"'{instance_name}'"
+            ))
+    return issues
+
+
+def validate_inference_profile(profile_name: str, definition: dict) -> list[Issue]:
+    """Validate a single inference_profile definition (V6).
+
+    Three tiers of verdict:
+
+    - ``INFERENCE_PROFILE_IMPLEMENTED_FIELDS`` -> type-checked and accepted.
+    - ``INFERENCE_PROFILE_DEFERRED_FIELDS``   -> ERROR with a "deferred in V6"
+      message naming the field. These have no transport path; declaring them
+      silently would do nothing, which the Mission Contract forbids.
+    - anything else                              -> ERROR as an unknown field.
+    """
+    issues: list[Issue] = []
+    if not isinstance(definition, dict):
+        issues.append(Issue(
+            "error", profile_name,
+            f"inference_profile '{profile_name}' must be a mapping"
+        ))
+        return issues
+
+    for field_name, value in definition.items():
+        if field_name in INFERENCE_PROFILE_IMPLEMENTED_FIELDS:
+            expected_type = INFERENCE_PROFILE_IMPLEMENTED_FIELDS[field_name]
+            _check_type(field_name, value, expected_type, issues)
+        elif field_name in INFERENCE_PROFILE_DEFERRED_FIELDS:
+            issues.append(Issue(
+                "error", field_name,
+                f"inference_profile '{profile_name}' field '{field_name}' "
+                f"is not implemented in V6 (deferred) — remove it"
+            ))
+        else:
+            issues.append(Issue(
+                "error", field_name,
+                f"inference_profile '{profile_name}' has unknown field "
+                f"'{field_name}' (allowed: "
+                f"{', '.join(sorted(INFERENCE_PROFILE_KNOWN_FIELDS))})"
+            ))
     return issues
 
 
@@ -309,19 +524,42 @@ def validate_role(role_name: str, definition: dict, aliases: dict) -> list[Issue
 def lint_config(raw: dict) -> dict:
     """Lint a full raw config (from config_writer.load_raw).
 
-    Returns a dict with keys "aliases", "profiles", "roles", each mapping
-    name -> list[Issue]. Only entries with issues are included.
+    Returns a dict with keys ``aliases``, ``runtime_instances``,
+    ``inference_profiles``, ``profiles`` and ``roles`` (each mapping
+    name -> list[Issue]). Only entries with issues are included.
     """
     aliases = raw.get("aliases", {})
     profiles = raw.get("profiles", {})
     roles = raw.get("roles", {})
+    runtime_instances = raw.get("runtime_instances", {}) or {}
+    inference_profiles = raw.get("inference_profiles", {}) or {}
 
-    report: dict[str, dict[str, list[Issue]]] = {"aliases": {}, "profiles": {}, "roles": {}}
+    report: dict[str, dict[str, list[Issue]]] = {
+        "aliases": {},
+        "runtime_instances": {},
+        "inference_profiles": {},
+        "profiles": {},
+        "roles": {},
+    }
 
     for name, definition in aliases.items():
-        issues = validate_alias(name, definition, profiles)
+        issues = validate_alias(
+            name, definition, profiles,
+            runtime_instances=runtime_instances,
+            inference_profiles=inference_profiles,
+        )
         if issues:
             report["aliases"][name] = issues
+
+    for name, definition in runtime_instances.items():
+        issues = validate_runtime_instance(name, definition)
+        if issues:
+            report["runtime_instances"][name] = issues
+
+    for name, definition in inference_profiles.items():
+        issues = validate_inference_profile(name, definition)
+        if issues:
+            report["inference_profiles"][name] = issues
 
     for name, definition in profiles.items():
         issues = validate_profile(name, definition)
