@@ -368,6 +368,13 @@ models:
   laguna-archi-shared:
     runtime_instance: laguna-shared-118b
     inference_profile: laguna-careful
+    real_model: Laguna-S-2.1-IQ4_XS
+    reasoning: "on"
+    load_mode: none
+    claude_extra_args:
+      - "--autocompact"
+      - "auto"
+      - "--dangerously-skip-permissions"
     clients:
       opencode: true
       claude-code: true
@@ -375,6 +382,13 @@ models:
   laguna-review-shared:
     runtime_instance: laguna-shared-118b
     inference_profile: laguna-fast
+    real_model: Laguna-S-2.1-IQ4_XS
+    reasoning: "on"
+    load_mode: none
+    claude_extra_args:
+      - "--autocompact"
+      - "auto"
+      - "--dangerously-skip-permissions"
     clients:
       opencode: true
       claude-code: true
@@ -395,6 +409,11 @@ runtime_instances:
     cache_type_k: q4_0
     cache_type_v: q4_0
     lifecycle_policy: shared_runtime
+    # Server-behaviour flags carried over from the proven laguna-local
+    # alias; unknown-instance-field warnings from the doctor are expected
+    # (forward-compat allow-list) and harmless.
+    jinja: true
+    parallel: 1
 
 # V6 — per-alias inference tuning for the shared aliases.
 inference_profiles:
