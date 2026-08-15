@@ -360,3 +360,48 @@ models:
     clients:
       opencode: true
       pi: true
+
+  # ───────────────────────────────────────────────────────────────
+  # V6 live acceptance (Gates 2-4, 2026-08-15) — two DPMtF-facing
+  # aliases sharing the Laguna foundation runtime declared below.
+  # ───────────────────────────────────────────────────────────────
+  laguna-archi-shared:
+    runtime_instance: laguna-shared-118b
+    inference_profile: laguna-careful
+    clients:
+      opencode: true
+      claude-code: true
+
+  laguna-review-shared:
+    runtime_instance: laguna-shared-118b
+    inference_profile: laguna-fast
+    clients:
+      opencode: true
+      claude-code: true
+
+# V6 — one physical llama-server shared by the two aliases above.
+# Port 8090, NOT 8080: 8080 is the deliberate one-at-a-time port and is
+# reclaim-swept weekdays 14:00Z by the trade engine. Parameters are the
+# committed laguna-local baseline (GOAL 016: no performance tuning).
+runtime_instances:
+  laguna-shared-118b:
+    runtime_profile: local_llamacpp_laguna
+    model_path: ${MODEL_ROOT_GGUF}/Laguna-S-2.1-IQ4_XS/Laguna-S-2.1-IQ4_XS/Laguna-S-2.1-IQ4_XS-00001-of-00002.gguf
+    server_bin_path: ${LLAMA_SERVER_BIN}
+    port: 8090
+    context: 262144
+    n_cpu_moe: 31
+    gpu_layers: 99
+    cache_type_k: q4_0
+    cache_type_v: q4_0
+    lifecycle_policy: shared_runtime
+
+# V6 — per-alias inference tuning for the shared aliases.
+inference_profiles:
+  laguna-careful:
+    reasoning_budget: 2048
+    max_output_tokens: 16384
+
+  laguna-fast:
+    reasoning_budget: 1024
+    max_output_tokens: 8192
