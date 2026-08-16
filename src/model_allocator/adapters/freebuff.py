@@ -17,6 +17,13 @@ from typing import Any
 
 
 def build_freebuff_command(resolved: dict) -> dict[str, Any]:
+    """Build the start command for the freebuff client.
+
+    Returns a dict with ``env`` (an empty mapping; freebuff needs no
+    allocator-injected environment) and ``argv`` (the binary path, taken
+    from ``FREEBUFF_BIN`` or defaulting to ``freebuff`` on ``PATH``).
+    Raises ``ValueError`` if the binary cannot be located.
+    """
     binary = os.environ.get("FREEBUFF_BIN", "freebuff")
     if not os.path.isabs(binary) and shutil.which(binary) is None:
         raise ValueError(
