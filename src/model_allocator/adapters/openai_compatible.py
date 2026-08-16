@@ -41,6 +41,13 @@ class OpenAICompatibleAdapter:
             raise OpenAICompatibleAdapterError(f"API base unreachable: {exc}")
 
     def is_api_reachable(self) -> dict:
+        """Probe the configured API base with a GET request.
+
+        Returns a dict with keys ``reachable`` (bool), ``status_code``
+        (int or None) and ``error`` (str or None). A 4xx/5xx response
+        still counts as reachable -- only a transport failure is
+        reported as unreachable.
+        """
         try:
             result = self._request("/")
             return {"reachable": True, "status_code": result.get("status_code"), "error": None}
