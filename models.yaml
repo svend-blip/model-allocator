@@ -361,6 +361,60 @@ models:
       opencode: true
       pi: true
 
+  # Qwen3.8-27B (UD-Q5_K_XL) on the dedicated qwen38 llama.cpp build.
+  # server_bin_path is deliberately a literal path, NOT ${LLAMA_SERVER_BIN}:
+  # that env var points at the laguna build, and an unset override variable
+  # would resolve to "" and fall back to the wrong binary silently —
+  # a literal path fails loudly in server_bin() if the build moves.
+  # draft-mtp uses the model's baked-in MTP head for speculative decoding,
+  # which is why the qwen38 build is required. Port 8080 is the shared
+  # one-at-a-time port (see the glm-air block above): both aliases are
+  # stop_after_step, and a second server fails loudly on bind.
+  Qwen38-Standard:
+    runtime_profile: local_llamacpp_cuda0
+    real_model: qwen3.8-27b
+    display_name: Qwen3.8-27B UD-Q5_K_XL (128k)
+    server_bin_path: /home/svend/llama.cpp-qwen38/build/bin/llama-server
+    model_path: ${MODEL_ROOT_GGUF}/Qwen3.8-27B/UD-Q5_K_XL/Qwen3.8-27B-UD-Q5_K_XL.gguf
+    port: 8080
+    context: 131072
+    lifecycle_policy: stop_after_step
+    max_output_tokens: 32768
+    cache_type_k: q8_0
+    cache_type_v: q8_0
+    flash_attn: "on"
+    gpu_layers: 99
+    jinja: true
+    parallel: 1
+    spec_type: draft-mtp
+    spec_draft_n_max: 2
+    clients:
+      opencode: true
+      claude-code: true
+
+  # Same runtime as Qwen38-Standard but with the full 256k window.
+  Qwen38-LongContext:
+    runtime_profile: local_llamacpp_cuda0
+    real_model: qwen3.8-27b
+    display_name: Qwen3.8-27B UD-Q5_K_XL (256k)
+    server_bin_path: /home/svend/llama.cpp-qwen38/build/bin/llama-server
+    model_path: ${MODEL_ROOT_GGUF}/Qwen3.8-27B/UD-Q5_K_XL/Qwen3.8-27B-UD-Q5_K_XL.gguf
+    port: 8080
+    context: 262144
+    lifecycle_policy: stop_after_step
+    max_output_tokens: 32768
+    cache_type_k: q8_0
+    cache_type_v: q8_0
+    flash_attn: "on"
+    gpu_layers: 99
+    jinja: true
+    parallel: 1
+    spec_type: draft-mtp
+    spec_draft_n_max: 2
+    clients:
+      opencode: true
+      claude-code: true
+
   # ───────────────────────────────────────────────────────────────
   # V6 live acceptance (Gates 2-4, 2026-08-15) — two DPMtF-facing
   # aliases sharing the Laguna foundation runtime declared below.
