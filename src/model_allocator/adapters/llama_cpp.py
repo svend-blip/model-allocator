@@ -168,6 +168,10 @@ class LlamaCppAdapter:
             argv += ["--n-gpu-layers", str(flags["gpu_layers"])]
         if "tensor_split" in flags:
             argv += ["--tensor-split", str(flags["tensor_split"])]
+        if "spec_type" in flags:
+            argv += ["--spec-type", str(flags["spec_type"])]
+        if "spec_draft_n_max" in flags:
+            argv += ["--spec-draft-n-max", str(flags["spec_draft_n_max"])]
         return argv
 
     # ─── V6: instance-keyed state file I/O ────────────────────────

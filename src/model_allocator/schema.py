@@ -88,6 +88,11 @@ LLAMACPP_ALIAS_FIELDS: dict[str, object] = {
     "no_mmap": bool,
     "gpu_layers": int,
     "tensor_split": str,
+    # Speculative decoding (llama.cpp --spec-type / --spec-draft-n-max).
+    # spec_type values are llama-server's own, e.g. "draft-mtp" for models
+    # with a baked-in MTP head (Qwen3.8).
+    "spec_type": str,
+    "spec_draft_n_max": int,
 }
 
 SGLANG_ALIAS_FIELDS: dict[str, object] = {
