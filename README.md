@@ -1,6 +1,10 @@
 # Model Allocator
 
-> A validated runtime/model-alias layer for the DPMtF ecosystem.
+> A validated runtime/model-alias layer for the DPMtF ecosystem
+> (DPMtF — Deterministic Process Management to Finalisation: a deterministic
+> multi-agent process orchestration framework for taking defined work from
+> intent to verified finalisation through governed flows, steps, roles,
+> harnesses, models, gates, and artifacts).
 > Decouples *which model a role uses* from *how that model is started, stopped,
 > validated, and resolved* across local Ollama, llama.cpp (TurboQuant), cloud
 > OpenAI-compatible APIs, and Minimax.
