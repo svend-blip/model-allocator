@@ -91,6 +91,7 @@ Backend adapters  → concrete runtime commands (Ollama, llama.cpp, cloud, …)
 | `llama_cpp` | llama-server (TurboQuant build) | spawn `llama-server` with full flag set + PID file + free/configured port + `/health` polling | kill PID (timeout) | `/health` + PID alive | `--ctx-size`, `--n-cpu-moe` (MoE) / `--n-gpu-layers` (dense), `--cache-type-k/v`, `--flash-attn`, `--tensor-split`, … |
 | `openai_compatible` | Cloud OpenAI-compatible | validate only | no-op | API reachability | model max context |
 | `sglang` | SGLang server (venv) | spawn `python -m sglang.launch_server` + health polling + VRAM settle | kill PID (timeout) | health + PID alive | `--context-length`, venv/model_path from runtime profile |
+| `freetoken` | FreeToken runtime (external venv) | spawn `ft serve` with only the configured flags + PID file + `/health` polling (`loading` -> `ok`) + model verification via `/v1/models` | `prepare-stop` drain, then SIGINT/SIGTERM/SIGKILL, confirmed by the port | `/health` state + `/v1/stats` telemetry | runtime reports its own max context; `--max-seq-len-override` caps it deliberately |
 | `anthropic` | Anthropic API / Claude subscription | no-op (hosted) | no-op | credentials presence (`ANTHROPIC_API_KEY` or Claude Code login) | model max context |
 | `onyx` | ONYX assistants (optional) | no-op (docker compose owns lifecycle) | no-op | `/health` + credentials | invoke-only: one-shot chat with citations |
 
@@ -527,6 +528,108 @@ Fix: set a top-level `model` field in `opencode.json` (the only reliable way).
 
 ---
 
+## FreeToken runtime (optional)
+
+FreeToken is a GPU-resident inference runtime with an OpenAI-compatible API.
+It is optional: nothing changes on a machine without it, and it activates only
+when an alias explicitly resolves to `backend: freetoken`.
+
+### Installation stays outside the allocator
+
+The allocator discovers and validates FreeToken; it never installs or upgrades
+it. That keeps the runtime independently upgradeable, and it keeps an
+upgrade — which can change backend selection and with it throughput — a
+deliberate act rather than a side effect.
+
+```bash
+git clone https://github.com/FlashML-org/FreeToken.git freetoken
+cd freetoken
+uv venv --python /usr/bin/python3.12 .venv
+uv pip install -e ".[accel]"
+```
+
+Because that venv is project-local, `ft` is absent from the PATH of any
+service environment. The runtime profile therefore names the binary
+explicitly, and the allocator executes it directly rather than sourcing an
+activate script:
+
+```bash
+export FREETOKEN_BIN=/path/to/freetoken/.venv/bin/ft
+```
+
+### `ft serve` only — never `ft launch`
+
+FreeToken ships `ft launch codex` and `ft launch claude`, which start a coding
+harness against a runtime it also starts. This allocator does not use them and
+must not: choosing, configuring and starting an interface is the harness
+allocator's authority. The seam between the two is a normalized endpoint
+descriptor:
+
+```json
+{
+  "provider": "freetoken",
+  "base_url": "http://127.0.0.1:8088",
+  "api_base": "http://127.0.0.1:8088/v1",
+  "model": "Qwen3.8-27B-NVFP4",
+  "context_length": 262144,
+  "api_compatibility": ["openai", "anthropic"]
+}
+```
+
+`api_compatibility` is detected from the running server's own route table, not
+declared: `anthropic` appears only when `/v1/messages` is actually served.
+
+### Qualified profiles
+
+Two configurations have been measured working on the RTX 5090 workstation
+against FreeToken 0.1.2 (source `2757bb5`), and both are shipped as aliases:
+
+| Alias | Model | Shape | Key options |
+|-------|-------|-------|-------------|
+| `freetoken-qwen38-27b` | `vrfai/Qwen3.8-27B-NVFP4` | dense, NVFP4 | `memory_ratio: 0.90`, `nvfp4_backend: auto` |
+| `freetoken-qwen36-35b-a3b` | `Qwen/Qwen3.6-35B-A3B` | MoE, offload | `moe_backend: auto`, `moe_cache_auto`, `kv_reserve_tokens: 16384` |
+
+`model_path` holds either a local checkpoint directory or a Hugging Face repo
+ID — both qualified profiles use repos, resolved from the local HF cache, so
+startup needs no network once the weights are provisioned.
+
+**`nvfp4_backend: auto` is load-bearing.** On the qualified card the default
+Triton NVFP4 path measured ~4.3 tokens/sec against ~63 with automatic backend
+selection; the same 219-token coding workload went from 51 seconds to 3.5.
+Both configurations start and serve correctly, so nothing but
+`test_qualified_qwen38_keeps_nvfp4_backend` stands between a configuration
+tidy-up and a fifteenfold slowdown.
+
+Options are emitted only when configured. An unset option produces no flag,
+which leaves FreeToken's own automatic selection in charge of everything a
+profile does not deliberately pin — and keeps MoE flags off dense models,
+where they would configure something that is not there.
+
+### Ownership and arbitration
+
+A qualified profile at `memory_ratio: 0.90` consumes roughly 30 GB of the
+card, so a FreeToken instance is an exclusive GPU workload in practice. It is
+registered in `LOCAL_SERVER_BACKENDS`, so `stop-all-servers` reaches it like
+any other resident runtime.
+
+Before starting, the adapter classifies whatever already holds the port: an
+allocator-owned instance serving the same model is reused rather than
+restarted (a 27B load is minutes), another FreeToken is refused rather than
+taken over, and a service that is not FreeToken is never disturbed. A stop is
+not reported as done until the port confirms it, and the PID file survives an
+unconfirmed stop so a later attempt can still find its way back.
+
+### Request-level parameters are not configured here
+
+`--reasoning-parser` is a server option and belongs to the runtime profile.
+`reasoning_effort` is a per-request choice — measurably worth setting to
+`none` for short deterministic coding tasks, where the model otherwise spends
+its output budget on reasoning content — and it belongs to whoever builds the
+request. That is the harness allocator or the DPMtF role profile, not this
+adapter.
+
+---
+
 ## ONYX runtime (optional, V5)
 
 > **Integration Pattern for LLMs**
@@ -598,7 +701,7 @@ pip install -e .                      # pyyaml is the only dependency
 python3 -m model_allocator --help
 python3 -m model_allocator list --client opencode
 python3 -m model_allocator validate --alias imple01-local --client opencode
-python3 -m pytest tests/              # 279 tests (unittest + pytest style)
+python3 -m pytest tests/              # 327 tests (unittest + pytest style)
 ```
 
 For a local TurboQuant llama.cpp setup:
