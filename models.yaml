@@ -475,6 +475,10 @@ models:
     # automatically -- the same 219-token workload went from 51s to 3.5s.
     # A configuration cleanup that drops this line costs a factor of fifteen.
     nvfp4_backend: auto
+    # Measured at ready in FT-5: 29273 MiB in use. A start that finds
+    # less free than this would load weights for minutes and then die
+    # on CUDA OOM — refusing up front costs seconds instead.
+    min_free_vram_mib: 30000
     sampling_defaults: model
     reasoning_parser: auto
     tool_call_parser: auto
@@ -509,6 +513,8 @@ models:
     # headroom. This is the difference between a model that answers questions
     # and one that can host an agent.
     num_tokens: 49152
+    # Measured at ready with that KV budget: 30011 MiB in use.
+    min_free_vram_mib: 30500
     sampling_defaults: model
     reasoning_parser: auto
     tool_call_parser: auto

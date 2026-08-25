@@ -396,6 +396,111 @@ class FreeTokenAdapter:
             return str(served)
         return self._model_reference().rstrip("/").split("/")[-1]
 
+    # ----------------------------------------------------------- GPU policy
+
+    def _nvidia_smi(self, args: list[str], timeout: float = 10.0) -> str | None:
+        """Run nvidia-smi, or return None when it cannot be reached.
+
+        Absence is not treated as a failure. A machine without nvidia-smi is
+        a machine this check cannot speak about, and refusing to start on a
+        missing diagnostic tool would break working setups to protect against
+        a hazard we have no evidence of.
+        """
+        binary = shutil.which("nvidia-smi")
+        if not binary:
+            return None
+        try:
+            completed = subprocess.run([binary] + args, capture_output=True,
+                                       text=True, timeout=timeout)
+        except Exception:
+            return None
+        if completed.returncode != 0:
+            return None
+        return completed.stdout
+
+    def gpu_occupancy(self) -> list[dict]:
+        """Compute processes holding this profile's GPU, largest first.
+
+        Reported per process rather than as a single free-memory number so a
+        refusal can name what is in the way. `nvidia-smi` scopes the query to
+        one device with `-i`, which matters on a multi-GPU host where another
+        card being busy is none of this profile's business.
+        """
+        index = self.gpu_index()
+        args = ["--query-compute-apps=pid,used_memory,process_name",
+                "--format=csv,noheader,nounits"]
+        if index is not None:
+            args = ["-i", str(index)] + args
+        output = self._nvidia_smi(args)
+        if output is None:
+            return []
+        apps = []
+        for line in output.strip().splitlines():
+            parts = [p.strip() for p in line.split(",")]
+            if len(parts) < 2 or not parts[0].isdigit():
+                continue
+            try:
+                used = int(parts[1])
+            except ValueError:
+                continue
+            apps.append({"pid": int(parts[0]), "used_mib": used,
+                         "name": parts[2] if len(parts) > 2 else ""})
+        return sorted(apps, key=lambda a: a["used_mib"], reverse=True)
+
+    def gpu_free_mib(self) -> int | None:
+        index = self.gpu_index()
+        args = ["--query-gpu=memory.free", "--format=csv,noheader,nounits"]
+        if index is not None:
+            args = ["-i", str(index)] + args
+        output = self._nvidia_smi(args)
+        if output is None:
+            return None
+        first = output.strip().splitlines()[0] if output.strip() else ""
+        try:
+            return int(first.strip())
+        except ValueError:
+            return None
+
+    def check_gpu_available(self) -> dict:
+        """Decide whether this profile can have the card, before spending
+        minutes discovering it cannot.
+
+        A qualified FreeToken profile claims very nearly the whole device, so
+        it is an exclusive workload in practice. Starting it beside a resident
+        llama.cpp or SGLang server does not degrade gracefully: weights load
+        for minutes and then the worker dies on CUDA OOM, which on an
+        autonomous chain is a failed step with a misleading cause.
+
+        This refuses rather than reclaims. Releasing another runtime is a
+        decision about somebody else's work, and the dispatch layer already
+        stops the outgoing role's model before starting the incoming one — so
+        an occupied card here means something unexpected is running, which is
+        exactly when acting automatically is wrong. The report names the
+        occupant so the caller can decide.
+        """
+        required = self.resolved.get("min_free_vram_mib")
+        free = self.gpu_free_mib()
+        occupants = self.gpu_occupancy()
+        ours = self._server_pids()
+        foreign = [a for a in occupants if a["pid"] not in ours]
+
+        if free is None:
+            return {"ok": True, "checked": False, "free_mib": None,
+                    "occupants": foreign, "error": None,
+                    "note": "nvidia-smi unavailable — GPU policy not enforced"}
+        if required and free < int(required):
+            names = ", ".join(
+                f"pid {a['pid']} ({a['name'] or 'unknown'}) {a['used_mib']} MiB"
+                for a in foreign[:3]) or "no compute process reported"
+            return {
+                "ok": False, "checked": True, "free_mib": free,
+                "occupants": foreign,
+                "error": (f"GPU {self.gpu_index()} has {free} MiB free but this "
+                          f"profile needs {required} MiB; held by: {names}"),
+            }
+        return {"ok": True, "checked": True, "free_mib": free,
+                "occupants": foreign, "error": None}
+
     def _port_open(self) -> bool:
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
@@ -511,6 +616,11 @@ class FreeTokenAdapter:
         preflight = self.version()
         if not preflight["ok"]:
             return {"started": False, "error": preflight["error"], "port": self.port}
+
+        gpu = self.check_gpu_available()
+        if not gpu["ok"]:
+            return {"started": False, "state": "gpu_unavailable",
+                    "error": gpu["error"], "port": self.port, "gpu": gpu}
 
         try:
             argv = self.build_argv()

@@ -633,6 +633,110 @@ class TestUsableContextBeforeFirstRequest(unittest.TestCase):
         self.assertEqual(endpoint["usable_context_tokens"], 14303)
 
 
+class TestGpuPolicy(unittest.TestCase):
+    """A qualified profile claims nearly the whole card, so it must not be
+    started onto an occupied one and left to discover that in CUDA."""
+
+    def setUp(self):
+        self.state_dir = tempfile.mkdtemp()
+
+    def _adapter(self, **overrides):
+        resolved = {"alias": "a", "port": 8088, "host": "127.0.0.1",
+                    "model_path": "vrfai/X", "executable": "/x/ft",
+                    "gpu": "cuda0", "min_free_vram_mib": 30000}
+        resolved.update(overrides)
+        return FreeTokenAdapter(resolved, state_dir=self.state_dir)
+
+    @staticmethod
+    def _smi(free_mib, apps=()):
+        """Stand in for nvidia-smi's two csv queries."""
+        def run(_self, args, **_kwargs):
+            joined = " ".join(args)
+            if "memory.free" in joined:
+                return str(free_mib)
+            if "compute-apps" in joined:
+                return "\n".join(f"{p}, {m}, {n}" for p, m, n in apps)
+            return ""
+        return run
+
+    def test_refuses_when_another_process_holds_the_card(self):
+        adapter = self._adapter()
+        with patch.object(FreeTokenAdapter, "_nvidia_smi",
+                          self._smi(2100, [(4242, 29000, "llama-server")])), \
+             patch.object(FreeTokenAdapter, "_server_pids", return_value=[]):
+            report = adapter.check_gpu_available()
+        self.assertFalse(report["ok"])
+        self.assertIn("2100", report["error"])
+        self.assertIn("llama-server", report["error"],
+                      "the refusal must name what is in the way")
+
+    def test_allows_a_free_card(self):
+        adapter = self._adapter()
+        with patch.object(FreeTokenAdapter, "_nvidia_smi", self._smi(32095)), \
+             patch.object(FreeTokenAdapter, "_server_pids", return_value=[]):
+            report = adapter.check_gpu_available()
+        self.assertTrue(report["ok"])
+        self.assertTrue(report["checked"])
+
+    def test_our_own_server_is_not_counted_against_us(self):
+        """Otherwise a reuse or a restart refuses on its own memory."""
+        adapter = self._adapter()
+        with patch.object(FreeTokenAdapter, "_nvidia_smi",
+                          self._smi(32095, [(999, 29000, "ft")])), \
+             patch.object(FreeTokenAdapter, "_server_pids", return_value=[999]):
+            report = adapter.check_gpu_available()
+        self.assertTrue(report["ok"])
+        self.assertEqual(report["occupants"], [])
+
+    def test_missing_nvidia_smi_does_not_block(self):
+        """A machine this check cannot speak about is not a machine to refuse.
+
+        Failing closed on an absent diagnostic tool would break working setups
+        to guard against a hazard we have no evidence of.
+        """
+        adapter = self._adapter()
+        with patch.object(FreeTokenAdapter, "_nvidia_smi",
+                          lambda self, args, timeout=10.0: None):
+            report = adapter.check_gpu_available()
+        self.assertTrue(report["ok"])
+        self.assertFalse(report["checked"])
+        self.assertIn("not enforced", report["note"])
+
+    def test_no_requirement_configured_means_no_refusal(self):
+        adapter = self._adapter(min_free_vram_mib=None)
+        with patch.object(FreeTokenAdapter, "_nvidia_smi",
+                          self._smi(500, [(4242, 31000, "other")])), \
+             patch.object(FreeTokenAdapter, "_server_pids", return_value=[]):
+            self.assertTrue(adapter.check_gpu_available()["ok"])
+
+    def test_start_refuses_before_spawning_anything(self):
+        """The whole point: seconds instead of a multi-minute load into OOM."""
+        adapter = self._adapter()
+        with patch("os.path.isfile", return_value=True), \
+             patch("os.access", return_value=True), \
+             patch.object(FreeTokenAdapter, "_port_open", return_value=False), \
+             patch.object(FreeTokenAdapter, "_nvidia_smi",
+                          self._smi(2100, [(4242, 29000, "llama-server")])), \
+             patch.object(FreeTokenAdapter, "_server_pids", return_value=[]), \
+             patch.object(ft.subprocess, "run") as version_run, \
+             patch.object(ft.subprocess, "Popen") as popen:
+            version_run.return_value.stdout = "freetoken version 0.1.2"
+            version_run.return_value.stderr = ""
+            version_run.return_value.returncode = 0
+            result = adapter.start(timeout=5)
+        self.assertFalse(result["started"])
+        self.assertEqual(result["state"], "gpu_unavailable")
+        popen.assert_not_called()
+
+    def test_both_qualified_profiles_declare_what_they_need(self):
+        """Measured from a successful load, not estimated."""
+        for name, floor in (("freetoken-qwen38-27b", 30000),
+                            ("freetoken-qwen36-35b-a3b", 30500)):
+            resolved = _qualified_alias(name)
+            self.assertEqual(resolved.get("min_free_vram_mib"), floor,
+                             f"{name} must declare its measured VRAM floor")
+
+
 class TestPortOwnership(unittest.TestCase):
     def setUp(self):
         self.state_dir = tempfile.mkdtemp()

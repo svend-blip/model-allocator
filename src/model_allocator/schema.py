@@ -133,6 +133,10 @@ FREETOKEN_ALIAS_FIELDS: dict[str, object] = {
     # on a full card is far below the model's context.
     "num_tokens": int,
     "num_pages": int,
+    # Free VRAM this profile needs before it may start, in MiB. Measured from
+    # a successful load, not estimated. Left unset, the GPU policy does not
+    # refuse anything — the check reports but never blocks.
+    "min_free_vram_mib": int,
     "attention_backend": str,
     "cache_type": str,
     "sampling_defaults": str,
