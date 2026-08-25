@@ -215,6 +215,26 @@ class FreeTokenAdapter:
             )
         return str(model)
 
+    def child_env(self, base: dict | None = None) -> dict:
+        """Environment for `ft serve`, with the runtime's own bin on PATH.
+
+        Executing the resolved binary directly is deterministic and avoids
+        sourcing an activate script — but it is not sufficient. FreeToken
+        JIT-compiles FlashInfer kernels during model load and shells out to
+        `ninja`, which lives in the same project-local venv and is nowhere on
+        a system PATH. Without this the server starts, answers /health, loads
+        weights, and only then dies with FileNotFoundError: 'ninja'.
+
+        Prepending rather than replacing: the venv's tools win, everything
+        else the parent had stays reachable. The SGLang adapter carries the
+        same lesson for the same reason.
+        """
+        env = dict(os.environ if base is None else base)
+        bin_dir = os.path.dirname(self.resolve_executable())
+        if bin_dir:
+            env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
+        return env
+
     def gpu_index(self) -> int | None:
         """FreeToken's `--gpu` index, from the allocator's own GPU naming.
 
@@ -328,18 +348,28 @@ class FreeTokenAdapter:
         if doc is None:
             return {"ok": False, "error": error}
         model = doc.get("model") or {}
-        memory = doc.get("memory") or {}
         kv = doc.get("kv") or {}
+        throughput = doc.get("throughput") or {}
+        requests = doc.get("requests") or {}
+        gpus = doc.get("gpus") or []
         return {
             "ok": True,
             "error": None,
-            "model": model.get("name") or model.get("served_model_name"),
-            "context_max": model.get("max_model_len") or model.get("context_length"),
+            "model": model.get("id"),
+            "context_max": model.get("ctx"),
             "moe": model.get("moe"),
-            "attention": model.get("attention") or model.get("attn"),
-            "vram_bytes": memory.get("vram_bytes") or doc.get("vram_bytes"),
-            "kv_used": kv.get("used"),
-            "kv_capacity": kv.get("capacity"),
+            "attention": model.get("attn"),
+            "vram_bytes": doc.get("vram_bytes"),
+            "kv_used": kv.get("used_pages"),
+            "kv_capacity": kv.get("total_pages"),
+            "decode_tps": throughput.get("decode_tps"),
+            "requests_completed": requests.get("completed"),
+            # GPU identity rather than index: FreeToken keys its bandwidth
+            # calibration per device, and an index is not a stable name for
+            # one across a reordered bus.
+            "gpus": [{"index": g.get("index"), "name": g.get("name"),
+                      "uuid": g.get("uuid"), "total_bytes": g.get("total_bytes")}
+                     for g in gpus],
             "doc": doc,
         }
 
@@ -490,6 +520,7 @@ class FreeTokenAdapter:
                 stdout=log_handle,
                 stderr=subprocess.STDOUT,
                 start_new_session=True,
+                env=self.child_env(),
             )
         except Exception as exc:
             return {"started": False,

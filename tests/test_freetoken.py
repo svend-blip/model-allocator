@@ -99,11 +99,24 @@ class _FakeRuntime:
         if url.endswith("/v1/stats"):
             if not self.stats_ok:
                 raise OSError("stats endpoint exploded")
+            # Shape copied from a live FreeToken 0.1.2 /v1/stats response
+            # (FT-5, RTX 5090). The keys were originally guessed from the
+            # spec and three of them were wrong — model.id not model.name,
+            # model.ctx not max_model_len, kv.used_pages/total_pages not
+            # used/capacity — which left the telemetry half empty against a
+            # perfectly healthy runtime.
             return _FakeResponse({
-                "model": {"name": self.model, "max_model_len": 262144,
-                          "moe": False, "attn": "hybrid_linear"},
-                "memory": {"vram_bytes": 30184308736},
-                "kv": {"used": 0, "capacity": 14303},
+                "instance_id": "fake-instance",
+                "model": {"id": self.model, "ctx": 262144, "moe": False,
+                          "attn": "hybrid_linear"},
+                "uptime_s": 47,
+                "kv": {"used_pages": 0, "total_pages": 14303, "page_size": 1},
+                "vram_bytes": 30163337216,
+                "gpus": [{"index": 0, "name": "NVIDIA GeForce RTX 5090",
+                          "uuid": "GPU-8b1c6a65-47f7-b29d-114f-b0738f968b1b",
+                          "total_bytes": 33668726784}],
+                "throughput": {"decode_tps": 0.0, "prefill_tps": 0.0},
+                "requests": {"active": 0, "completed": 1},
             })
         if url.endswith("/openapi.json"):
             return _FakeResponse({"paths": {"/v1/chat/completions": {},
@@ -302,6 +315,24 @@ class TestExecutableResolution(unittest.TestCase):
                 adapter.resolve_executable()
         self.assertIn("executable", str(caught.exception))
 
+    def test_child_env_puts_the_runtime_bin_on_path(self):
+        """FreeToken shells out to `ninja` during model load.
+
+        It lives in the same project-local venv as `ft` and is on no system
+        PATH. Without this the server starts, answers /health, loads weights
+        and only then dies — measured on the qualified machine, FT-5.
+        """
+        adapter = FreeTokenAdapter(
+            {"alias": "a", "port": 1, "executable": "/opt/ft-venv/bin/ft"},
+            state_dir=self.state_dir)
+        with patch("os.path.isfile", return_value=True), \
+             patch("os.access", return_value=True):
+            env = adapter.child_env({"PATH": "/usr/bin", "KEEP": "yes"})
+        self.assertTrue(env["PATH"].startswith("/opt/ft-venv/bin:"))
+        self.assertIn("/usr/bin", env["PATH"])
+        self.assertEqual(env["KEEP"], "yes",
+                         "the parent environment must survive, not be replaced")
+
     def test_missing_port_is_refused_at_construction(self):
         with self.assertRaises(FreeTokenAdapterError):
             FreeTokenAdapter({"alias": "a"}, state_dir=self.state_dir)
@@ -469,10 +500,27 @@ class TestLifecycle(unittest.TestCase):
         with patch.object(ft.urllib.request, "urlopen", runtime.urlopen):
             telemetry = self.adapter.stats()
         self.assertTrue(telemetry["ok"])
+        self.assertEqual(telemetry["model"], "Qwen3.8-27B-NVFP4")
         self.assertEqual(telemetry["context_max"], 262144)
         self.assertFalse(telemetry["moe"])
-        self.assertEqual(telemetry["vram_bytes"], 30184308736)
+        self.assertEqual(telemetry["attention"], "hybrid_linear")
+        self.assertEqual(telemetry["vram_bytes"], 30163337216)
+        self.assertEqual(telemetry["kv_used"], 0)
         self.assertEqual(telemetry["kv_capacity"], 14303)
+
+    def test_stats_carry_gpu_identity_not_just_an_index(self):
+        """FreeToken keys its bandwidth calibration per device.
+
+        An index is not a stable name for a GPU across a reordered bus, so
+        the UUID is what a later calibration lookup can rely on.
+        """
+        runtime = _FakeRuntime()
+        with patch.object(ft.urllib.request, "urlopen", runtime.urlopen):
+            telemetry = self.adapter.stats()
+        self.assertEqual(len(telemetry["gpus"]), 1)
+        self.assertEqual(telemetry["gpus"][0]["uuid"],
+                         "GPU-8b1c6a65-47f7-b29d-114f-b0738f968b1b")
+        self.assertEqual(telemetry["gpus"][0]["index"], 0)
 
     def test_endpoint_is_the_harness_seam(self):
         runtime = _FakeRuntime()
