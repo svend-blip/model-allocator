@@ -605,6 +605,33 @@ which leaves FreeToken's own automatic selection in charge of everything a
 profile does not deliberately pin — and keeps MoE flags off dense models,
 where they would configure something that is not there.
 
+### Context: what is advertised versus what fits
+
+The two numbers are far apart, and the gap decides whether a client works at
+all. `endpoint()` therefore carries both:
+
+- `context_length` — the architecture's maximum, as the runtime reports it.
+  Both qualified profiles say 262144.
+- `usable_context_tokens` — the allocated KV budget, shared by prompt AND
+  generation. On the qualified Qwen3.8 profile at `memory_ratio: 0.90` that is
+  **14303 tokens**, about five percent of the advertised figure.
+
+Sizing a prompt by `context_length` fails on contact. Measured (FT-6): a
+coding harness whose baseline context is ~35k tokens was refused immediately
+with `prompt is too long: 34937 tokens > 14303 maximum`. Raising the budget
+with `--num-tokens 49152` (3.00 GiB of KV) let the server start, and then the
+prefill exhausted the card — `torch.OutOfMemoryError`, 36 MiB free.
+
+The KV cost per token is not a property of FreeToken but of the model. The
+dense 27B profile spends ~3.00 GiB on 49152 tokens; the MoE 35B-A3B profile
+spends **0.32 GiB on 16542 tokens** — roughly a third per token, because far
+fewer parameters are active. On a 32 GB card that difference decides which
+models can host an agent rather than answer a question.
+
+So: the qualified throughput figures were measured on short prompts and say
+nothing about whether a model can hold a repository in context. Check
+`usable_context_tokens` before pointing a harness at a profile.
+
 ### Ownership and arbitration
 
 A qualified profile at `memory_ratio: 0.90` consumes roughly 30 GB of the
