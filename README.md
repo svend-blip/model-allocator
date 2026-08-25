@@ -632,6 +632,49 @@ So: the qualified throughput figures were measured on short prompts and say
 nothing about whether a model can hold a repository in context. Check
 `usable_context_tokens` before pointing a harness at a profile.
 
+### Reasoning spends the output budget first
+
+On the qualified models, reasoning tokens come out of `max_tokens` before any
+content does. A request with a tight budget returns an **empty string**:
+
+| Request | `finish_reason` | content | reasoning |
+|---------|-----------------|---------|-----------|
+| `max_tokens: 16`, `reasoning_effort: low` | `length` | *(empty)* | 62 chars |
+| `max_tokens: 16`, no effort field | `length` | *(empty)* | 47 chars |
+| `max_tokens: 256`, `reasoning_effort: low` | `stop` | `OK` | 92 chars |
+| `max_tokens: 256`, no effort field | `stop` | `OK` | 371 chars |
+
+The failure is well signalled — `finish_reason` says `length` — and completely
+silent if a caller reads only `content`. A qualification probe here recorded
+three clean lifecycle cycles with an empty completion each and would have
+passed them as working inference had the payload not been opened.
+
+`reasoning_effort` does control it (371 chars down to 92 at `low`), but even
+`low` spends tokens, and this checkpoint advertises
+`supported=['low','medium','xhigh'] default=xhigh` — it does not accept
+`none`. So: budget for reasoning as well as answer, and check `finish_reason`.
+
+The effort value itself is a request-level choice and is deliberately not set
+by this adapter; see the note at the end of this section.
+
+### GPU arbitration
+
+A qualified profile claims very nearly the whole card, so it is an exclusive
+workload. Both profiles declare the free VRAM they need — measured from a
+successful load, not estimated — and `start()` refuses in seconds rather than
+loading weights for minutes and dying in CUDA:
+
+```
+GPU 0 has 2100 MiB free but this profile needs 30000 MiB;
+held by: pid 4242 (llama-server) 29000 MiB
+```
+
+It refuses rather than reclaims: releasing another runtime is a decision about
+somebody else's work, and dispatch already stops the outgoing role's model
+before starting the incoming one. Our own server's memory is excluded from the
+sum, or a restart would refuse on its own allocation, and a machine without
+`nvidia-smi` is reported as unchecked rather than blocked.
+
 ### Ownership and arbitration
 
 A qualified profile at `memory_ratio: 0.90` consumes roughly 30 GB of the
