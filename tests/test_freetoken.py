@@ -532,6 +532,23 @@ class TestLifecycle(unittest.TestCase):
         self.assertEqual(endpoint["context_length"], 262144)
         self.assertIn("openai", endpoint["api_compatibility"])
 
+    def test_endpoint_separates_advertised_context_from_what_fits(self):
+        """The two numbers are not close, and the difference costs a request.
+
+        The qualified Qwen3.8 profile advertises 262144 context against a
+        14303-token KV budget. A caller that sized its prompt by
+        context_length had its very first request refused with
+        "prompt is too long: 34937 tokens > 14303 maximum" (FT-6), so the
+        operational budget has to travel in the contract too.
+        """
+        runtime = _FakeRuntime()
+        with patch.object(ft.urllib.request, "urlopen", runtime.urlopen):
+            endpoint = self.adapter.endpoint()
+        self.assertEqual(endpoint["context_length"], 262144)
+        self.assertEqual(endpoint["usable_context_tokens"], 14303)
+        self.assertLess(endpoint["usable_context_tokens"],
+                        endpoint["context_length"])
+
     def test_endpoint_reports_anthropic_only_when_the_route_exists(self):
         runtime = _FakeRuntime()
         with patch.object(ft.urllib.request, "urlopen", runtime.urlopen):

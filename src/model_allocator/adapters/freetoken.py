@@ -641,10 +641,12 @@ class FreeTokenAdapter:
         base_url = self._base_url()
         served = self.expected_model_name()
         context = None
+        kv_capacity = None
         telemetry = self.stats()
         if telemetry["ok"]:
             served = telemetry.get("model") or served
             context = telemetry.get("context_max")
+            kv_capacity = telemetry.get("kv_capacity")
         if context is None:
             context = self.resolved.get("context")
 
@@ -658,7 +660,15 @@ class FreeTokenAdapter:
             "base_url": base_url,
             "api_base": f"{base_url}/v1",
             "model": served,
+            # The architecture's maximum. NOT what fits right now.
             "context_length": context,
+            # What actually fits: the allocated KV budget, in tokens, for
+            # prompt AND generation together. On a card this full the two
+            # numbers are not close — the qualified Qwen3.8 profile reports
+            # 262144 context against a 14303-token KV budget, and a caller
+            # that sized its prompt by context_length had its very first
+            # request refused (FT-6). Consumers must budget by this field.
+            "usable_context_tokens": kv_capacity,
             "api_compatibility": compatibility,
         }
 
