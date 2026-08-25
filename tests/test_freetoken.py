@@ -768,6 +768,27 @@ class TestFakeRuntimeIntegration(unittest.TestCase):
         self.assertIn("CUDA OOM", result["error"])
 
 
+class TestConfigDiscovery(unittest.TestCase):
+    def test_resolver_finds_shipped_aliases_from_any_cwd(self):
+        """A library caller must not have to be standing in the repo.
+
+        `load_config` defaulted to `Path.cwd()` while the CLI defaulted to the
+        repo root, so importing Resolver from anywhere else raised
+        "Alias not found" for aliases the CLI resolved fine on the same
+        machine. Found in FT-7, where a DPMtF-side script ran from its own
+        scratch directory.
+        """
+        import os
+        from model_allocator.resolver import Resolver
+        cwd = os.getcwd()
+        os.chdir(tempfile.mkdtemp())
+        try:
+            resolved = Resolver().resolve_alias("freetoken-qwen36-35b-a3b")
+        finally:
+            os.chdir(cwd)
+        self.assertEqual(resolved["backend"], "freetoken")
+
+
 class TestBackendRegistration(unittest.TestCase):
     def test_freetoken_is_a_known_backend(self):
         self.assertIn("freetoken", schema.BACKENDS)

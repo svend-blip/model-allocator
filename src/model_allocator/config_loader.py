@@ -76,7 +76,17 @@ def load_config(config_dir: Path | str | None = None) -> dict:
     """Load allocator-local configuration.
 
     Loads models, roles, and runtime_profiles files from *config_dir*.
-    If *config_dir* is omitted, the current working directory is used.
+    If *config_dir* is omitted, the repository root that ships this package
+    is used when it holds a ``models.yaml``, and the current working
+    directory otherwise.
+
+    The repo-root default matters because it is what the CLI already does
+    (``cli._default_config_dir``). Without it a library caller — anything
+    importing :class:`Resolver` directly instead of shelling out — resolved
+    against its own cwd and got "Alias not found" for aliases the CLI
+    resolves fine from the same machine. The two entry points now agree on
+    where configuration lives.
+
     Files are searched in this order (first match wins):
       models.yaml / models.json
       roles.yaml / roles.json
@@ -89,7 +99,11 @@ def load_config(config_dir: Path | str | None = None) -> dict:
     alongside the existing ``models:`` section; the schema linter enforces
     field ownership so they cannot collide with what an alias declares.
     """
-    config_dir = Path(config_dir) if config_dir else Path.cwd()
+    if config_dir:
+        config_dir = Path(config_dir)
+    else:
+        repo_root = Path(__file__).resolve().parent.parent.parent
+        config_dir = repo_root if (repo_root / "models.yaml").exists() else Path.cwd()
 
     def load(name: str) -> dict:
         for ext in (".yaml", ".yml", ".json"):
