@@ -128,6 +128,11 @@ FREETOKEN_ALIAS_FIELDS: dict[str, object] = {
     "moe_cache_size": str,
     "moe_cache_rate": (int, float),
     "kv_reserve_tokens": int,
+    # KV budget in tokens (prompt + generation share it). Mutually exclusive
+    # with num_pages. Left unset, FreeToken sizes it from leftover VRAM, which
+    # on a full card is far below the model's context.
+    "num_tokens": int,
+    "num_pages": int,
     "attention_backend": str,
     "cache_type": str,
     "sampling_defaults": str,

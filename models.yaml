@@ -501,6 +501,14 @@ models:
     moe_backend: auto
     moe_cache_auto: true
     kv_reserve_tokens: 16384
+    # Measured, not guessed (FT-6). Left unset, FreeToken sizes the KV budget
+    # from whatever VRAM the MoE cache leaves and lands on 16542 tokens, which
+    # a coding harness exceeds before it has read a single file. 49152 tokens
+    # costs 0.94 GiB here — a third of what the dense profile pays for the
+    # same count, because far fewer parameters are active — and leaves ~2.6 GB
+    # headroom. This is the difference between a model that answers questions
+    # and one that can host an agent.
+    num_tokens: 49152
     sampling_defaults: model
     reasoning_parser: auto
     tool_call_parser: auto

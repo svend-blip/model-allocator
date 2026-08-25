@@ -66,6 +66,12 @@ _VALUE_FLAGS: tuple[tuple[str, str], ...] = (
     ("moe_cache_size", "--moe-cache-size"),
     ("moe_cache_rate", "--moe-cache-rate"),
     ("kv_reserve_tokens", "--kv-reserve-tokens"),
+    # The KV budget, in tokens, shared by prompt and generation. FreeToken
+    # sizes this from whatever VRAM is left after weights and MoE cache, which
+    # on a full card lands far below the model's context — see FT-6 in the
+    # README. Set it deliberately when a client needs a working context.
+    ("num_tokens", "--num-tokens"),
+    ("num_pages", "--num-pages"),
     ("sampling_defaults", "--sampling-defaults"),
     ("reasoning_parser", "--reasoning-parser"),
     ("tool_call_parser", "--tool-call-parser"),
@@ -255,6 +261,11 @@ class FreeTokenAdapter:
         return int(match.group(1))
 
     def build_argv(self) -> list[str]:
+        if self.resolved.get("num_tokens") and self.resolved.get("num_pages"):
+            raise FreeTokenAdapterError(
+                "num_tokens and num_pages both set — FreeToken accepts only "
+                "one of them (they size the same KV allocation)"
+            )
         argv = [
             self.resolve_executable(), "serve",
             "--model-path", self._model_reference(),

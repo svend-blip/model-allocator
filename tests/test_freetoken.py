@@ -255,6 +255,33 @@ class TestQualifiedProfiles(unittest.TestCase):
 
     @patch("os.path.isfile", return_value=True)
     @patch("os.access", return_value=True)
+    @patch("os.path.isfile", return_value=True)
+    @patch("os.access", return_value=True)
+    def test_qualified_moe_carries_an_agent_sized_kv_budget(self, *_):
+        """MANDATORY REGRESSION, and the reason this profile is usable.
+
+        Left unset, FreeToken sizes the KV budget from leftover VRAM and lands
+        on 16542 tokens — a coding harness exceeds that before it has read a
+        file (FT-6, measured). 49152 tokens costs 0.94 GiB on this profile.
+        Dropping this line does not fail loudly; it makes every agent request
+        too long.
+        """
+        argv = FreeTokenAdapter(
+            _qualified_alias("freetoken-qwen36-35b-a3b")).build_argv()
+        self.assertIn("--num-tokens", argv)
+        self.assertGreaterEqual(int(argv[argv.index("--num-tokens") + 1]), 49152)
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("os.access", return_value=True)
+    def test_num_tokens_and_num_pages_together_are_refused(self, *_):
+        """FreeToken accepts one or the other; they size the same allocation."""
+        resolved = _qualified_alias("freetoken-qwen36-35b-a3b")
+        resolved["num_pages"] = 4096
+        with self.assertRaises(FreeTokenAdapterError):
+            FreeTokenAdapter(resolved).build_argv()
+
+    @patch("os.path.isfile", return_value=True)
+    @patch("os.access", return_value=True)
     def test_qualified_qwen36_moe_command(self, *_):
         argv = FreeTokenAdapter(
             _qualified_alias("freetoken-qwen36-35b-a3b")).build_argv()
