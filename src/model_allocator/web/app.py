@@ -893,7 +893,7 @@ async def index():
 def run():
     """Entry point for model-allocator-web command."""
     import uvicorn
-    port = int(os.environ.get("ALLOCATOR_WEB_PORT", "9140"))
+    port = int(os.environ.get("ALLOCATOR_WEB_PORT", "9141"))
     host = os.environ.get("ALLOCATOR_WEB_HOST", "0.0.0.0")
     uvicorn.run(app, host=host, port=port)
 
