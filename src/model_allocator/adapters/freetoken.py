@@ -660,6 +660,13 @@ class FreeTokenAdapter:
             kv_capacity = telemetry.get("kv_capacity")
         if context is None:
             context = self.resolved.get("context")
+        if kv_capacity is None:
+            # /v1/stats reports kv as null until the runtime has served its
+            # first request, and the budget is most needed BEFORE that — a
+            # caller sizing its opening prompt has nothing else to go on. Fall
+            # back to what the profile asked for, which is what the runtime
+            # logs allocating at startup.
+            kv_capacity = self.resolved.get("num_tokens")
 
         compatibility = ["openai"]
         doc, _ = self._get_json("/openapi.json", timeout=3.0)

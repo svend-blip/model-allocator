@@ -593,6 +593,46 @@ class TestLifecycle(unittest.TestCase):
                              self.adapter.endpoint()["api_compatibility"])
 
 
+class TestUsableContextBeforeFirstRequest(unittest.TestCase):
+    """The budget must be answerable before the first prompt is sent.
+
+    FreeToken reports `kv: null` in /v1/stats until it has served a request,
+    which is exactly the window in which a caller is deciding how large its
+    opening prompt may be. Measured in FT-7, where a freshly started runtime
+    handed the harness `usable_context_tokens: null`.
+    """
+
+    def setUp(self):
+        self.state_dir = tempfile.mkdtemp()
+
+    def _adapter(self, **overrides):
+        resolved = {"alias": "a", "port": 8088, "host": "127.0.0.1",
+                    "model_path": "vrfai/X", "executable": "/x/ft",
+                    "context": 262144}
+        resolved.update(overrides)
+        return FreeTokenAdapter(resolved, state_dir=self.state_dir)
+
+    def test_falls_back_to_the_configured_budget(self):
+        class ColdRuntime(_FakeRuntime):
+            def urlopen(self, request, timeout=None):
+                url = request if isinstance(request, str) else request.full_url
+                if url.endswith("/v1/stats"):
+                    return _FakeResponse({"model": {"id": "X", "ctx": 262144},
+                                          "kv": None, "vram_bytes": 0})
+                return super().urlopen(request, timeout)
+
+        adapter = self._adapter(num_tokens=49152)
+        with patch.object(ft.urllib.request, "urlopen", ColdRuntime(model="X").urlopen):
+            endpoint = adapter.endpoint()
+        self.assertEqual(endpoint["usable_context_tokens"], 49152)
+
+    def test_runtime_reported_capacity_wins_over_the_configured_one(self):
+        adapter = self._adapter(num_tokens=99999)
+        with patch.object(ft.urllib.request, "urlopen", _FakeRuntime().urlopen):
+            endpoint = adapter.endpoint()
+        self.assertEqual(endpoint["usable_context_tokens"], 14303)
+
+
 class TestPortOwnership(unittest.TestCase):
     def setUp(self):
         self.state_dir = tempfile.mkdtemp()
