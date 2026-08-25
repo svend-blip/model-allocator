@@ -737,6 +737,61 @@ class TestGpuPolicy(unittest.TestCase):
                              f"{name} must declare its measured VRAM floor")
 
 
+class TestCapabilitiesAreDetected(unittest.TestCase):
+    """A capability that is asserted rather than measured is worse than a
+    missing one: a consumer planning an offline run acts on it."""
+
+    def setUp(self):
+        self.state_dir = tempfile.mkdtemp()
+        self.cache = tempfile.mkdtemp()
+
+    def _adapter(self, model="vrfai/Qwen3.8-27B-NVFP4", **overrides):
+        resolved = {"alias": "a", "port": 8088, "model_path": model,
+                    "executable": "/x/ft", "gpu": "cuda0"}
+        resolved.update(overrides)
+        return FreeTokenAdapter(resolved, state_dir=self.state_dir)
+
+    def test_cached_repo_is_reported_cached(self):
+        os.makedirs(os.path.join(self.cache,
+                                 "models--vrfai--Qwen3.8-27B-NVFP4"))
+        with patch.dict(os.environ, {"HF_HUB_CACHE": self.cache}):
+            self.assertTrue(self._adapter().model_is_cached())
+
+    def test_uncached_repo_is_reported_uncached(self):
+        with patch.dict(os.environ, {"HF_HUB_CACHE": self.cache}):
+            self.assertFalse(self._adapter().model_is_cached())
+
+    def test_capability_follows_the_cache_rather_than_a_constant(self):
+        with patch.dict(os.environ, {"HF_HUB_CACHE": self.cache}):
+            caps = self._adapter().capabilities()["capabilities"]
+            self.assertFalse(caps["offline_cached_models"])
+            os.makedirs(os.path.join(self.cache,
+                                     "models--vrfai--Qwen3.8-27B-NVFP4"))
+            caps = self._adapter().capabilities()["capabilities"]
+            self.assertTrue(caps["offline_cached_models"])
+
+    def test_local_checkpoint_directory_needs_no_hub_cache(self):
+        local = tempfile.mkdtemp()
+        self.assertTrue(self._adapter(model=local).model_is_cached())
+
+    def test_unanswerable_is_none_not_a_guess(self):
+        """A bare name is neither a repo id nor a path."""
+        self.assertIsNone(self._adapter(model="just-a-name").model_is_cached())
+
+    def test_gpu_selection_reflects_the_profile(self):
+        self.assertTrue(
+            self._adapter().capabilities()["capabilities"]["gpu_selection"])
+        self.assertFalse(
+            self._adapter(gpu=None).capabilities()["capabilities"]["gpu_selection"])
+
+    def test_hub_cache_honours_the_documented_env_order(self):
+        with patch.dict(os.environ, {"HF_HUB_CACHE": "/explicit"}):
+            self.assertEqual(self._adapter().hub_cache_dir(), "/explicit")
+        with patch.dict(os.environ, {"HF_HOME": "/home-var"}, clear=False):
+            os.environ.pop("HF_HUB_CACHE", None)
+            self.assertEqual(self._adapter().hub_cache_dir(), "/home-var/hub")
+
+
 class TestPortOwnership(unittest.TestCase):
     def setUp(self):
         self.state_dir = tempfile.mkdtemp()

@@ -800,15 +800,60 @@ class FreeTokenAdapter:
             "api_compatibility": compatibility,
         }
 
+    def hub_cache_dir(self) -> str:
+        """The Hugging Face hub cache this profile's weights would come from.
+
+        Honours HF_HUB_CACHE, then HF_HOME, then the documented default —
+        the same order the hub library itself uses.
+        """
+        explicit = os.environ.get("HF_HUB_CACHE")
+        if explicit:
+            return explicit
+        home = os.environ.get("HF_HOME")
+        if home:
+            return os.path.join(home, "hub")
+        return os.path.expanduser("~/.cache/huggingface/hub")
+
+    def model_is_cached(self) -> bool | None:
+        """Whether this profile's weights are already on disk.
+
+        Returns None when the question does not apply or cannot be answered
+        — a local checkpoint path that exists needs no hub cache, and an
+        unreadable cache directory is not evidence of absence.
+        """
+        try:
+            model = self._model_reference()
+        except FreeTokenAdapterError:
+            return None
+        if os.path.isdir(model):
+            return True
+        if "/" not in model:
+            return None
+        cache = self.hub_cache_dir()
+        entry = os.path.join(cache, "models--" + model.replace("/", "--"))
+        try:
+            return os.path.isdir(entry)
+        except OSError:
+            return None
+
     def capabilities(self) -> dict:
+        """Report capabilities, detected where they can be.
+
+        `offline_cached_models` used to be hardcoded True. That was an
+        assumption wearing a measurement's clothes: nothing had checked
+        whether this profile's weights were actually on disk, and a consumer
+        planning an offline run would have been told yes regardless. It is
+        now derived from the hub cache, and None when the question cannot be
+        answered rather than a guess in either direction.
+        """
         return {
             "provider": "freetoken",
             "capabilities": {
                 "openai_api": True,
                 "runtime_stats": True,
-                "gpu_selection": True,
+                "gpu_selection": self.gpu_index() is not None,
                 "huggingface_models": True,
-                "offline_cached_models": True,
+                "offline_cached_models": self.model_is_cached(),
             },
         }
 
