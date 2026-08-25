@@ -284,6 +284,18 @@ roles:
     config_dir: Pre-review-cl
     client_aliases:
       claude-code: sonnet5
+
+  # ── preferred_cloud_harness (511/512/513) ──────────────────────────
+  # Same chain shape as preferred_cloud with an explicit coding harness per
+  # role. Only the reviewer goes through the model allocator — the supervisor
+  # runs DeepSeek Harness and the implementer runs Codex CLI, both launched
+  # directly by DPMtF's harness module. Reuses the existing sonnet5 alias;
+  # no second Sonnet 5 runtime configuration.
+  review-claude-sonnet5:
+    default_alias: sonnet5
+    config_dir: review-claude-sonnet5
+    client_aliases:
+      claude-code: sonnet5
   # lightworker flow. The key must equal bridge_roles.role_key exactly:
   # `model-allocator run` resolves --role against this file and has no
   # --alias form, so a rename on either side breaks the other.
