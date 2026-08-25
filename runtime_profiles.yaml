@@ -85,3 +85,20 @@ runtime_profiles:
   # name one, and lying about a backend would invite lifecycle calls.
   external_tool:
     backend: external
+
+  # FreeToken: GPU-resident inference runtime with an OpenAI-compatible API,
+  # qualified on the RTX 5090 workstation against FreeToken 0.1.2 (source
+  # 2757bb5). The install is deliberately external to this allocator and lives
+  # in its own project-local venv, so `ft` is absent from the PATH of any
+  # service environment -- hence an explicit executable rather than a name.
+  #
+  # FreeToken also ships `ft launch codex` / `ft launch claude`. Those are not
+  # used and must not be: starting a coding interface is the harness
+  # allocator's authority. This allocator only ever runs `ft serve`.
+  freetoken_cuda0:
+    backend: freetoken
+    executable: ${FREETOKEN_BIN}
+    default_port: 8088
+    default_host: 127.0.0.1
+    gpu: cuda0
+    qualified_runtime_version: "0.1.2"

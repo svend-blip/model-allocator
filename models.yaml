@@ -447,6 +447,71 @@ models:
       opencode: true
       claude-code: true
 
+  # ── FreeToken (qualified on the RTX 5090 workstation, ft 0.1.2) ─────────
+  # Port 8088, deliberately NOT 8080: that port is the one-at-a-time llama.cpp
+  # port and is reclaim-swept weekdays 14:00Z by the trade engine.
+  #
+  # Both profiles reproduce a command that was measured working. The options
+  # here are not tuning knobs to be tidied away -- see nvfp4_backend below.
+  #
+  # Neither alias declares claude-code. FreeToken does expose an
+  # Anthropic-shaped /v1/messages, and the adapter reports it when the runtime
+  # confirms it, but routing a client at it is a separate qualification: the
+  # first harness integration goes over the OpenAI-compatible endpoint.
+
+  # Dense NVFP4. No MoE options: this checkpoint reports moe=false, and MoE
+  # flags on a dense model configure something that is not there.
+  freetoken-qwen38-27b:
+    runtime_profile: freetoken_cuda0
+    real_model: Qwen3.8-27B-NVFP4
+    display_name: Qwen3.8-27B NVFP4 (FreeToken, 256k)
+    model_path: vrfai/Qwen3.8-27B-NVFP4
+    port: 8088
+    context: 262144
+    lifecycle_policy: stop_after_step
+    memory_ratio: 0.90
+    # Load-bearing. On this card the qualification measured ~4.3 tok/s on the
+    # default Triton NVFP4 path against ~63 tok/s with the backend chosen
+    # automatically -- the same 219-token workload went from 51s to 3.5s.
+    # A configuration cleanup that drops this line costs a factor of fifteen.
+    nvfp4_backend: auto
+    sampling_defaults: model
+    reasoning_parser: auto
+    tool_call_parser: auto
+    qualification:
+      status: validated
+      runtime_version: "0.1.2"
+      gpu_class: RTX_5090
+      cuda_major: 13
+    clients:
+      opencode: true
+
+  # MoE control profile. Kept as the second qualified configuration because
+  # Qwen3.6 and Qwen3.8 exercise materially different FreeToken paths, and a
+  # single profile would let one of them rot unnoticed.
+  freetoken-qwen36-35b-a3b:
+    runtime_profile: freetoken_cuda0
+    real_model: Qwen3.6-35B-A3B
+    display_name: Qwen3.6-35B-A3B (FreeToken MoE, 256k)
+    model_path: Qwen/Qwen3.6-35B-A3B
+    port: 8088
+    context: 262144
+    lifecycle_policy: stop_after_step
+    memory_ratio: 0.90
+    moe_backend: auto
+    moe_cache_auto: true
+    kv_reserve_tokens: 16384
+    sampling_defaults: model
+    reasoning_parser: auto
+    tool_call_parser: auto
+    qualification:
+      status: validated
+      runtime_version: "0.1.2"
+      gpu_class: RTX_5090
+      cuda_major: 13
+    clients:
+      opencode: true
+
 # V6 — one physical llama-server shared by the two aliases above.
 # Port 8090, NOT 8080: 8080 is the deliberate one-at-a-time port and is
 # reclaim-swept weekdays 14:00Z by the trade engine. Parameters are the
