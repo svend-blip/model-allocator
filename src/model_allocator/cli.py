@@ -16,6 +16,7 @@ from model_allocator.adapters import anthropic as anthropic_adapter
 from model_allocator.adapters import claude_code
 from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import sglang as sglang_adapter
+from model_allocator.adapters import freetoken as freetoken_adapter
 from model_allocator.adapters import opencode
 from model_allocator.adapters import ollama as ollama_adapter
 from model_allocator.adapters import openai_compatible as openai_adapter
@@ -60,6 +61,8 @@ def _get_backend_adapter(resolved: dict):
         return llama_cpp_adapter.LlamaCppAdapter(resolved)
     if backend == "sglang":
         return sglang_adapter.SGLangAdapter(resolved)
+    if backend == "freetoken":
+        return freetoken_adapter.FreeTokenAdapter(resolved)
     if backend == "onyx":
         return onyx_adapter.OnyxAdapter.from_resolved(resolved)
     if backend == "anthropic":
@@ -164,13 +167,16 @@ def cmd_status(args: argparse.Namespace) -> int:
         report.update(adapter.status())
     elif backend == "sglang":
         report.update(adapter.status())
+    elif backend == "freetoken":
+        report.update(adapter.status())
     elif backend == "anthropic":
         report.update(adapter.status())
 
     print(json.dumps(report, indent=2, default=str))
     if backend == "ollama" and not report["reachable"]["reachable"]:
         return EXIT_WARNING
-    if backend in ("openai_compatible", "llama_cpp", "sglang") and not report.get("running", False):
+    if backend in ("openai_compatible", "llama_cpp", "sglang", "freetoken") \
+            and not report.get("running", False):
         return EXIT_WARNING
     if backend == "anthropic" and not report.get("credentials_present", False):
         return EXIT_WARNING
@@ -262,7 +268,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     # --no-auto-start skips this (used when pre_dispatch_script handles server lifecycle).
     if not getattr(args, "no_auto_start", False):
         backend = resolved.get("backend")
-        if backend in ("llama_cpp", "sglang"):
+        if backend in ("llama_cpp", "sglang", "freetoken"):
             try:
                 adapter = _get_backend_adapter(resolved)
             except ValueError as exc:
@@ -351,6 +357,8 @@ def cmd_start(args: argparse.Namespace) -> int:
         result = adapter.start(timeout=args.timeout)
     elif backend == "sglang":
         result = adapter.start(timeout=args.timeout)
+    elif backend == "freetoken":
+        result = adapter.start(timeout=args.timeout)
     elif backend == "anthropic":
         result = adapter.start()
     else:
@@ -367,7 +375,7 @@ def cmd_start(args: argparse.Namespace) -> int:
 # deliberately absent: it evicts models by itself to make room, so its loaded
 # models never block another model the way a resident llama.cpp/SGLang server
 # does. Cloud/external/onyx backends own no local server process at all.
-LOCAL_SERVER_BACKENDS = ("llama_cpp", "sglang")
+LOCAL_SERVER_BACKENDS = ("llama_cpp", "sglang", "freetoken")
 
 
 def _stop_all_local_servers(args: argparse.Namespace) -> int:
@@ -485,6 +493,8 @@ def cmd_stop(args: argparse.Namespace) -> int:
         result = adapter.stop(timeout=args.timeout)
     elif backend == "sglang":
         result = adapter.stop(timeout=args.timeout)
+    elif backend == "freetoken":
+        result = adapter.stop(timeout=args.timeout)
     elif backend == "anthropic":
         result = adapter.stop()
     else:
@@ -551,9 +561,9 @@ def cmd_start_instance(args: argparse.Namespace) -> int:
         return EXIT_ERROR
 
     backend = resolved.get("backend")
-    if backend not in ("llama_cpp", "sglang"):
+    if backend not in LOCAL_SERVER_BACKENDS:
         print(f"ERROR: instance-level start is only supported for "
-              f"local-server backends (llama_cpp, sglang), got '{backend}'",
+              f"local-server backends {LOCAL_SERVER_BACKENDS}, got '{backend}'",
               file=sys.stderr)
         return EXIT_ERROR
 

@@ -30,7 +30,8 @@ class Issue:
     message: str
 
 
-BACKENDS = ("ollama", "llama_cpp", "openai_compatible", "onyx", "anthropic", "sglang")
+BACKENDS = ("ollama", "llama_cpp", "openai_compatible", "onyx", "anthropic",
+            "sglang", "freetoken")
 
 COMMON_ALIAS_FIELDS: dict[str, object] = {
     "runtime_profile": str,
@@ -109,6 +110,45 @@ SGLANG_ALIAS_FIELDS: dict[str, object] = {
     "max_output_tokens": int,
 }
 
+FREETOKEN_ALIAS_FIELDS: dict[str, object] = {
+    # model_path holds either a local checkpoint directory or a Hugging Face
+    # repo ID — FreeToken accepts both, and the qualified profiles use repos.
+    "model_path": str,
+    "served_model_name": str,
+    "port": int,
+    "host": str,
+    "executable": str,
+    "context": int,
+    "memory_ratio": (int, float),
+    # Backend selection. These are not cosmetic tuning: on the qualified
+    # RTX 5090 profile, nvfp4_backend decided between ~4 and ~63 tokens/sec.
+    "nvfp4_backend": str,
+    "moe_backend": str,
+    "moe_cache_auto": bool,
+    "moe_cache_size": str,
+    "moe_cache_rate": (int, float),
+    "kv_reserve_tokens": int,
+    "attention_backend": str,
+    "cache_type": str,
+    "sampling_defaults": str,
+    "reasoning_parser": str,
+    "tool_call_parser": str,
+    "model_source": str,
+    "dtype": str,
+    "max_running_requests": int,
+    "max_output_tokens": int,
+    # The runtime reports its own maximum context; this caps it deliberately
+    # and is left unset by the qualified profiles.
+    "max_seq_len_override": int,
+    "cuda_graph_max_bs": int,
+    "max_prefill_length": int,
+    "enable_cache_report": bool,
+    "disable_moe_prefill_overlap": bool,
+    "extra_args": list,
+    "qualified_runtime_version": str,
+    "qualification": dict,
+}
+
 PROFILE_FIELDS: dict[str, object] = {
     "backend": str,
     "api_base_env": str,
@@ -121,6 +161,11 @@ PROFILE_FIELDS: dict[str, object] = {
     # Anthropic profiles default to "api_key" when absent, for compatibility.
     "credentials": str,
     "gpu": str,
+    # Absolute path to a runtime binary that is not on PATH. FreeToken's
+    # qualified install is a project-local venv, so a service environment
+    # never finds `ft` by name.
+    "executable": str,
+    "qualified_runtime_version": str,
     "server_bin_env": str,
     "model_root_env": str,
     "default_port": int,
@@ -341,6 +386,8 @@ def validate_alias(alias_name: str, definition: dict, profiles: dict,
         allow_list.update(LLAMACPP_ALIAS_FIELDS)
     elif backend == "sglang":
         allow_list.update(SGLANG_ALIAS_FIELDS)
+    elif backend == "freetoken":
+        allow_list.update(FREETOKEN_ALIAS_FIELDS)
     # Profile fields are overridable on alias — add them
     for key, val_type in PROFILE_FIELDS.items():
         if key not in allow_list:
@@ -390,6 +437,12 @@ def validate_alias(alias_name: str, definition: dict, profiles: dict,
         if not has_instance and not definition.get("model_path"):
             issues.append(Issue("error", "model_path",
                                 "sglang backend requires model_path"))
+    elif backend == "freetoken":
+        if not has_instance and not definition.get("model_path"):
+            issues.append(Issue(
+                "error", "model_path",
+                "freetoken backend requires model_path (a local checkpoint "
+                "directory or a Hugging Face repo ID)"))
 
     return issues
 
