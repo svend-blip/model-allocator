@@ -296,6 +296,25 @@ roles:
     config_dir: review-claude-sonnet5
     client_aliases:
       claude-code: sonnet5
+  # ── 1000-01-PLOOP / 1000-02-ELOOP (two-flow setup, spec §13) ────────
+  # Only the roles the model allocator LAUNCHES appear here: the planning
+  # supervisor (claude-code) and the reviewer (opencode). The execution
+  # decomposer and implementer are deliberately absent — they run the qwen
+  # harness against the freetoken alias, warmed by dispatch via the alias,
+  # and the escalation supervisor runs DeepSeek Harness. Absence is the
+  # same convention the preferred_cloud_harness roles follow.
+  1000-planning-supervisor:
+    default_alias: opus5
+    config_dir: 1000-planning-supervisor
+    client_aliases:
+      claude-code: opus5
+
+  1000-reviewer:
+    default_alias: Qwen38-Standard
+    config_dir: 1000-reviewer
+    client_aliases:
+      opencode: Qwen38-Standard
+
   # lightworker flow. The key must equal bridge_roles.role_key exactly:
   # `model-allocator run` resolves --role against this file and has no
   # --alias form, so a rename on either side breaks the other.
