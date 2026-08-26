@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import os
+import shutil
 
 from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import ollama as ollama_adapter
@@ -72,6 +73,10 @@ class Validator:
             self._validate_llama_cpp(resolved, client, result)
         elif backend == "sglang":
             self._validate_sglang(resolved, client, result)
+        elif backend == "freetoken":
+            self._validate_freetoken(resolved, client, result)
+        elif backend == "external":
+            self._validate_external(resolved, client, result)
         elif backend == "onyx":
             self._validate_onyx(resolved, client, result)
         elif backend == "anthropic":
@@ -98,6 +103,17 @@ class Validator:
             if backend == "openai_compatible" and provider != "minimax":
                 return
             if backend == "anthropic":
+                return
+            # llama.cpp serves an Anthropic-shaped endpoint that the
+            # claude_code adapter has handled since it was written: its
+            # llama_cpp branch sets ANTHROPIC_BASE_URL to the server and
+            # unsets ANTHROPIC_API_KEY. Commit 8dee242 recorded it proven by
+            # a live two-role run. This rule said otherwise for months, and
+            # only `laguna-local` ever showed the resulting error — the four
+            # other llama.cpp aliases that declare claude-code list opencode
+            # first, and the UI validates against the FIRST enabled client,
+            # so dict ordering hid the same condition on all of them.
+            if backend == "llama_cpp":
                 return
             result["errors"].append(
                 f"Client 'claude-code' is incompatible with backend '{backend}' (provider '{provider}')"
@@ -238,6 +254,56 @@ class Validator:
         if venv and not os.path.isdir(venv):
             result["warnings"].append(f"SGLang venv not found: {venv}")
         result["client_support"][client] = "OK"
+
+    def _validate_freetoken(self, resolved: dict, client: str, result: dict) -> None:
+        """Check what can be checked without starting a 27B model.
+
+        Everything here is static or cheap: the model reference is present,
+        the binary resolves, and the KV budget the profile asks for is
+        declared. Nothing touches the GPU and nothing waits on a load — a
+        validation that costs two minutes and 30 GB is a validation nobody
+        runs.
+        """
+        model_path = resolved.get("model_path", "")
+        if not model_path:
+            result["errors"].append(
+                "model_path not configured — FreeToken needs a local "
+                "checkpoint directory or a Hugging Face repo ID")
+        # Deliberately NOT os.path.exists(): a Hugging Face repo id is a
+        # first-class model reference and rejecting it would fail exactly the
+        # configuration this machine qualified.
+
+        executable = resolved.get("executable") or resolved.get("server_bin_path") or ""
+        if executable:
+            if not (os.path.isfile(executable) and os.access(executable, os.X_OK)):
+                result["errors"].append(
+                    f"FreeToken executable not found or not executable: {executable}")
+        elif not shutil.which("ft"):
+            result["warnings"].append(
+                "FreeToken executable unresolved: no `executable` on the "
+                "runtime profile and no `ft` on PATH. The qualified install "
+                "is a project-local venv, so PATH will not find it — set "
+                "FREETOKEN_BIN or the profile's executable")
+
+        if not resolved.get("num_tokens") and not resolved.get("num_pages"):
+            result["warnings"].append(
+                "No KV budget declared (num_tokens): FreeToken will size it "
+                "from leftover VRAM, which on a full card lands far below the "
+                "model's context — measured at 14303 tokens against an "
+                "advertised 262144")
+
+        result["client_support"][client] = "OK"
+
+    def _validate_external(self, resolved: dict, client: str, result: dict) -> None:
+        """The `external` backend owns nothing, by design.
+
+        A client like freebuff manages its own model and runtime; the profile
+        exists only because every alias must name one. There is no adapter to
+        implement and nothing to start, stop or reach, so the generic
+        "adapter is not implemented" error was reporting a deliberate design
+        choice as a fault.
+        """
+        result["client_support"][client] = "OK (client-managed runtime)"
 
     def format_output(self, result: dict) -> str:
         lines = [result["validation_status"]]
