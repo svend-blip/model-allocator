@@ -318,11 +318,16 @@ roles:
     client_aliases:
       claude-code: opus5
 
+  # Moved off Qwen38-Standard 2026-08-27: its llama.cpp build faulted the GPU
+  # three times (NVRM Xid 8, all llama-server, none FreeToken, card healthy),
+  # leaving the Reviewer unable to run and its verdict undeliverable. All
+  # three ELOOP roles now share one resident model, which is what the alias's
+  # stop_after_step lifecycle already assumes.
   1000-reviewer:
-    default_alias: Qwen38-Standard
+    default_alias: freetoken-qwen36-35b-a3b
     config_dir: 1000-reviewer
     client_aliases:
-      opencode: Qwen38-Standard
+      opencode: freetoken-qwen36-35b-a3b
 
   # ELOOP's two execution roles. They ran the qwen harness until 2026-08-27,
   # when run 002 proved that combination unusable: this alias advertises
