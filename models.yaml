@@ -512,7 +512,7 @@ models:
     # same count, because far fewer parameters are active — and leaves ~2.6 GB
     # headroom. This is the difference between a model that answers questions
     # and one that can host an agent.
-    num_tokens: 49152
+    num_tokens: 65536
     # Measured at ready with that KV budget: 30011 MiB in use.
     min_free_vram_mib: 30500
     sampling_defaults: model
