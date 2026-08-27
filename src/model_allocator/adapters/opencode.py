@@ -69,6 +69,53 @@ def _ollama_v1_provider_name(resolved: dict) -> str:
     return resolved.get("opencode_provider_name") or "ollama-v1"
 
 
+def _client_context(resolved: dict):
+    """The context window a CLIENT should be told, or ``None`` when unknown.
+
+    An alias carries two different numbers and only one of them is a promise.
+    ``context`` is what the MODEL supports; ``num_tokens`` is what the runtime
+    was actually given room to hold, which on a VRAM-bound card is routinely
+    far smaller. Telling a client the first when the second is the truth is
+    not a rounding error — it is the difference between a client that manages
+    its window and one that walks into a wall.
+
+    Run 002 was blocked exactly there. freetoken-qwen36-35b-a3b advertises
+    262144 and holds 49152. Qwen Code, which has no way to be told anything,
+    filled the real budget while reporting 4.9% of an imagined one; the server
+    then clamped its reply to 31 tokens and the stream died with no visible
+    progress. OpenCode CAN be told — but it was being told 262144 too, so
+    moving a role here without this would have relocated the failure rather
+    than removed it.
+
+    Returns the smaller of the two whenever both are present, so a runtime
+    that genuinely holds the full window is unaffected.
+    """
+    context = resolved.get("context")
+    budget = resolved.get("num_tokens")
+    values = [int(v) for v in (context, budget) if v]
+    return min(values) if values else None
+
+
+def _freetoken_provider_name(resolved: dict) -> str:
+    return resolved.get("opencode_provider_name") or "freetoken-local"
+
+
+def _freetoken_model_id(resolved: dict) -> str:
+    """The id OpenCode uses for a FreeToken model.
+
+    FreeToken serves under the name the runtime loaded, which is what
+    ``/v1/models`` reports and what the completions endpoint expects, so the
+    same value keys the provider's model block and suffixes the top-level
+    ``model`` field. Both call sites read it from here so they cannot drift.
+    """
+    return (
+        resolved.get("opencode_model_id")
+        or resolved.get("served_model_name")
+        or resolved.get("real_model")
+        or "model"
+    )
+
+
 def _openai_provider_name(resolved: dict) -> str:
     """Provider key for an openai_compatible alias.
 
@@ -105,6 +152,8 @@ def _model_arg(resolved: dict) -> str:
         provider_name = resolved.get("opencode_provider_name") or provider or "sglang-local"
         model_id = resolved.get("opencode_model_id") or resolved.get("served_model_name") or real_model or "model"
         return f"{provider_name}/{model_id}"
+    if backend == "freetoken":
+        return f"{_freetoken_provider_name(resolved)}/{_freetoken_model_id(resolved)}"
     return real_model
 
 
@@ -156,7 +205,7 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
         # OpenCode its context window and the client fell back to whatever it
         # assumes for an unknown model. The whole point of configuring a
         # window is that the client knows it.
-        context = resolved.get("context")
+        context = _client_context(resolved)
         if context:
             model_entry["limit"] = {
                 "context": int(context),
@@ -176,6 +225,44 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
             },
         }
 
+    if backend == "freetoken":
+        # FreeToken had no branch here at all, and an unhandled backend falls
+        # through to `return {}` — an empty config, which OpenCode reads as
+        # "no provider configured" and answers by silently using its own
+        # default model. A role would have launched, run, and produced work
+        # against a model nobody chose.
+        provider_name = _freetoken_provider_name(resolved)
+        model_id = _freetoken_model_id(resolved)
+        host = resolved.get("host", resolved.get("default_host", "127.0.0.1"))
+        port = resolved.get("port", resolved.get("default_port", 8088))
+        model_entry: dict[str, Any] = {
+            "name": resolved.get("display_name") or model_id,
+        }
+        context = _client_context(resolved)
+        if context:
+            model_entry["limit"] = {
+                "context": int(context),
+                "output": int(
+                    resolved.get("max_output_tokens") or min(int(context) // 2, 8192)
+                ),
+            }
+        return {
+            "model": model_field,
+            "provider": {
+                provider_name: {
+                    "npm": "@ai-sdk/openai-compatible",
+                    "name": provider_name,
+                    "options": {
+                        "baseURL": f"http://{host}:{port}/v1",
+                        # FreeToken authenticates nothing on loopback, but the
+                        # OpenAI-compatible SDK will not call without a key.
+                        "apiKey": "dummy",
+                    },
+                    "models": {model_id: model_entry},
+                },
+            },
+        }
+
     if backend == "sglang":
         provider_name = resolved.get("opencode_provider_name") or provider or "sglang-local"
         model_id = resolved.get("opencode_model_id") or resolved.get("served_model_name") or resolved.get("real_model") or "model"
@@ -184,7 +271,7 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
         model_entry: dict[str, Any] = {
             "name": resolved.get("display_name") or model_id,
         }
-        context = resolved.get("context")
+        context = _client_context(resolved)
         if context:
             model_entry["limit"] = {
                 "context": int(context),
@@ -222,7 +309,7 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
         if api_key_env:
             options["apiKey"] = "{env:" + api_key_env + "}"
         model_entry: dict[str, Any] = {"name": resolved.get("display_name") or model_id}
-        context = resolved.get("context")
+        context = _client_context(resolved)
         if context:
             model_entry["limit"] = {
                 "context": int(context),
@@ -249,7 +336,7 @@ def build_opencode_config(resolved: dict) -> dict[str, Any]:
             api_base = os.environ.get(api_base_env, "") or api_base
         model_id = resolved.get("real_model") or "model"
         model_entry: dict[str, Any] = {}
-        context = resolved.get("context")
+        context = _client_context(resolved)
         if context:
             model_entry["limit"] = {
                 "context": int(context),

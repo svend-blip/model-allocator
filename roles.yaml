@@ -324,18 +324,29 @@ roles:
     client_aliases:
       opencode: Qwen38-Standard
 
-  # ELOOP's two qwen roles. No config_dir: qwen has no allocator-written
-  # config file — its endpoint travels in the child env, composed by DPMtF
-  # from this alias's resolved port and real_model.
+  # ELOOP's two execution roles. They ran the qwen harness until 2026-08-27,
+  # when run 002 proved that combination unusable: this alias advertises
+  # 262144 tokens and holds 49152, and Qwen Code has no knob for a context
+  # limit — its table of model windows contains only glm-* entries, so every
+  # other model gets a ~1M default. It filled the real budget while reporting
+  # 4.9% of an imagined one, the server clamped its reply to 31 tokens, and
+  # the stream died before a single handoff was written.
+  #
+  # OpenCode can be told the truth, so they run OpenCode against the same
+  # alias. The allocator writes `limit.context` from the SMALLER of `context`
+  # and `num_tokens` (see adapters/opencode._client_context) — without that
+  # this move would have relocated the failure rather than removed it.
   1000-execution-decomposer:
     default_alias: freetoken-qwen36-35b-a3b
+    config_dir: 1000-execution-decomposer
     client_aliases:
-      qwen: freetoken-qwen36-35b-a3b
+      opencode: freetoken-qwen36-35b-a3b
 
   1000-implementer:
     default_alias: freetoken-qwen36-35b-a3b
+    config_dir: 1000-implementer
     client_aliases:
-      qwen: freetoken-qwen36-35b-a3b
+      opencode: freetoken-qwen36-35b-a3b
 
   # lightworker flow. The key must equal bridge_roles.role_key exactly:
   # `model-allocator run` resolves --role against this file and has no

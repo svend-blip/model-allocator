@@ -525,11 +525,12 @@ models:
       cuda_major: 13
     clients:
       opencode: true
-      # Qwen Code reaches this alias over the same OpenAI-compatible surface
-      # FreeToken already serves. The allocator supplies the model and the
-      # endpoint; harness-allocator builds the qwen launch argv. Declaring
-      # the client here is what makes `resolve --client qwen` answer, and
-      # answering is the whole of this side's job.
+      # qwen stays declared: the client CAN reach this alias, and the launch
+      # path built for it works. What does not work is the pairing — Qwen
+      # Code cannot be told this alias holds 49152 rather than the 262144 it
+      # advertises, so it fills the real budget believing it is at 5%. The
+      # 1000 ELOOP roles moved to OpenCode on 2026-08-27 for that reason.
+      # Declaring the client is not a recommendation to use it here.
       qwen: true
 
 # V6 — one physical llama-server shared by the two aliases above.
