@@ -525,6 +525,12 @@ models:
       cuda_major: 13
     clients:
       opencode: true
+      # Qwen Code reaches this alias over the same OpenAI-compatible surface
+      # FreeToken already serves. The allocator supplies the model and the
+      # endpoint; harness-allocator builds the qwen launch argv. Declaring
+      # the client here is what makes `resolve --client qwen` answer, and
+      # answering is the whole of this side's job.
+      qwen: true
 
 # V6 — one physical llama-server shared by the two aliases above.
 # Port 8090, NOT 8080: 8080 is the deliberate one-at-a-time port and is

@@ -297,12 +297,21 @@ roles:
     client_aliases:
       claude-code: sonnet5
   # ── 1000-01-PLOOP / 1000-02-ELOOP (two-flow setup, spec §13) ────────
-  # Only the roles the model allocator LAUNCHES appear here: the planning
-  # supervisor (claude-code) and the reviewer (opencode). The execution
-  # decomposer and implementer are deliberately absent — they run the qwen
-  # harness against the freetoken alias, warmed by dispatch via the alias,
-  # and the escalation supervisor runs DeepSeek Harness. Absence is the
-  # same convention the preferred_cloud_harness roles follow.
+  # Appearing here means "the allocator can resolve a model for this role",
+  # NOT "the allocator launches its interface". The distinction is the
+  # Launch Authority boundary: model-allocator owns models and runtimes,
+  # harness-allocator owns interface launches.
+  #
+  # The planning supervisor (claude-code) and reviewer (opencode) are both
+  # resolved AND launched here, because the allocator has client adapters
+  # for those two. The execution decomposer and implementer run the qwen
+  # harness: harness-allocator builds their launch argv, and this file
+  # exists for them only so `resolve --client qwen` can answer with the
+  # FreeToken alias and its endpoint. They were absent until 2026-08-27,
+  # which made them unlaunchable — "Start code interface" resolved them
+  # through the allocator and got "Role not found", and there was no other
+  # path to a model binding. Absence was never the same thing as
+  # delegation.
   1000-planning-supervisor:
     default_alias: opus5
     config_dir: 1000-planning-supervisor
@@ -314,6 +323,19 @@ roles:
     config_dir: 1000-reviewer
     client_aliases:
       opencode: Qwen38-Standard
+
+  # ELOOP's two qwen roles. No config_dir: qwen has no allocator-written
+  # config file — its endpoint travels in the child env, composed by DPMtF
+  # from this alias's resolved port and real_model.
+  1000-execution-decomposer:
+    default_alias: freetoken-qwen36-35b-a3b
+    client_aliases:
+      qwen: freetoken-qwen36-35b-a3b
+
+  1000-implementer:
+    default_alias: freetoken-qwen36-35b-a3b
+    client_aliases:
+      qwen: freetoken-qwen36-35b-a3b
 
   # lightworker flow. The key must equal bridge_roles.role_key exactly:
   # `model-allocator run` resolves --role against this file and has no
