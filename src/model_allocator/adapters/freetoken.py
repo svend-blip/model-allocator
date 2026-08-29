@@ -586,6 +586,53 @@ class FreeTokenAdapter:
         except OSError:
             pass
 
+    @staticmethod
+    def _cgroup_unit_of(pid: int) -> str | None:
+        """Name the systemd unit whose cgroup holds `pid`, if any."""
+        try:
+            with open(f"/proc/{pid}/cgroup", encoding="utf-8") as handle:
+                line = handle.readline().strip()
+        except OSError:
+            return None
+        unit = line.rpartition("/")[2]
+        if unit.endswith((".scope", ".service")):
+            return unit
+        return None
+
+    def _shield_from_oomd(self, pid: int | None) -> dict:
+        """Ask systemd-oomd to spare the unit this server landed in.
+
+        `ft serve` inherits the cgroup of whoever invoked the allocator —
+        in practice a tmux pane's scope — and on a machine where the engine
+        holds ~60 GB of shared memory it is also the most expensive victim
+        oomd can pick: a reload costs minutes and stalls every role wired
+        to the endpoint (it was killed twice on 2026-08-29, once mid-load,
+        which is why this runs before the readiness wait). The preference
+        is runtime-only and dies with the scope, so it must be re-applied
+        on every start; that is exactly why it lives here. Best effort by
+        design: a start never fails because the shield could not be set,
+        the outcome is reported in the start result instead.
+        """
+        if pid is None:
+            return {"applied": False, "reason": "no pid to inspect"}
+        unit = self._cgroup_unit_of(pid)
+        if unit is None:
+            return {"applied": False,
+                    "reason": f"pid {pid} is not in a systemd unit cgroup"}
+        try:
+            probe = subprocess.run(
+                ["systemctl", "--user", "set-property", unit,
+                 "ManagedOOMPreference=avoid"],
+                capture_output=True, text=True, timeout=10,
+            )
+        except Exception as exc:
+            return {"applied": False, "reason": str(exc)}
+        if probe.returncode != 0:
+            detail = (probe.stderr or probe.stdout or "").strip()
+            return {"applied": False,
+                    "reason": detail or f"systemctl rc={probe.returncode}"}
+        return {"applied": True, "unit": unit}
+
     def start(self, timeout: int = 900) -> dict:
         """Start `ft serve` and wait for the runtime to declare itself ready.
 
@@ -598,10 +645,12 @@ class FreeTokenAdapter:
         if occupant["occupied"]:
             if occupant["reusable"]:
                 pids = self._server_pids()
+                pid = pids[0] if pids else self._recorded_pid()
                 return {
                     "started": True, "reused": True, "error": None,
-                    "pid": pids[0] if pids else self._recorded_pid(),
+                    "pid": pid,
                     "port": self.port, "state": occupant.get("state"),
+                    "oomd_shield": self._shield_from_oomd(pid),
                 }
             return {
                 "started": False, "reused": False,
@@ -653,6 +702,10 @@ class FreeTokenAdapter:
 
         Path(self.pid_file).write_text(str(process.pid), encoding="utf-8")
 
+        # Shield before the readiness wait, not after: the load itself is
+        # the window where the engine's shmem footprint grows fastest.
+        oomd_shield = self._shield_from_oomd(process.pid)
+
         start_ts = time.time()
         last_state = "starting"
         while time.time() - start_ts < timeout:
@@ -676,12 +729,14 @@ class FreeTokenAdapter:
                         "pid": process.pid, "port": self.port,
                         "model": verification.get("served"),
                         "log": log_path,
+                        "oomd_shield": oomd_shield,
                     }
                 if last_state == "failed":
                     return {
                         "started": False, "state": "failed",
                         "error": health["error"] or "FreeToken reported a fatal error",
                         "pid": process.pid, "port": self.port, "log": log_path,
+                        "oomd_shield": oomd_shield,
                     }
             time.sleep(1.0)
 
@@ -690,6 +745,7 @@ class FreeTokenAdapter:
             "error": (f"FreeToken did not become ready within {timeout}s "
                       f"(last state: {last_state}); see {log_path}"),
             "pid": process.pid, "port": self.port, "log": log_path,
+            "oomd_shield": oomd_shield,
         }
 
     def verify_model(self) -> dict:

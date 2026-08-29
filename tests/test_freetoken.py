@@ -15,7 +15,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import mock_open, patch
 
 import yaml
 
@@ -849,11 +849,61 @@ class TestPortOwnership(unittest.TestCase):
         with patch.object(ft.urllib.request, "urlopen", runtime.urlopen), \
              patch.object(FreeTokenAdapter, "_port_open", return_value=True), \
              patch.object(FreeTokenAdapter, "_server_pids", return_value=[4242]), \
+             patch.object(FreeTokenAdapter, "_shield_from_oomd",
+                          return_value={"applied": False, "reason": "test"}) \
+             as shield, \
              patch.object(ft.subprocess, "Popen") as popen:
             result = self.adapter.start(timeout=1)
         self.assertTrue(result["started"])
         self.assertTrue(result["reused"])
         popen.assert_not_called()
+        shield.assert_called_once_with(4242)
+        self.assertIn("oomd_shield", result)
+
+    def test_shield_sets_avoid_on_the_unit_holding_the_pid(self):
+        with patch.object(FreeTokenAdapter, "_cgroup_unit_of",
+                          return_value="tmux-spawn-abc.scope"), \
+             patch.object(ft.subprocess, "run") as run:
+            run.return_value.returncode = 0
+            run.return_value.stdout = ""
+            run.return_value.stderr = ""
+            result = self.adapter._shield_from_oomd(4242)
+        self.assertEqual(result, {"applied": True,
+                                  "unit": "tmux-spawn-abc.scope"})
+        run.assert_called_once()
+        self.assertEqual(
+            run.call_args.args[0],
+            ["systemctl", "--user", "set-property", "tmux-spawn-abc.scope",
+             "ManagedOOMPreference=avoid"])
+
+    def test_shield_failure_is_reported_not_raised(self):
+        """A start must never die because oomd could not be talked to."""
+        with patch.object(FreeTokenAdapter, "_cgroup_unit_of",
+                          return_value="tmux-spawn-abc.scope"), \
+             patch.object(ft.subprocess, "run",
+                          side_effect=OSError("no systemctl")):
+            result = self.adapter._shield_from_oomd(4242)
+        self.assertFalse(result["applied"])
+        self.assertIn("no systemctl", result["reason"])
+
+    def test_shield_outside_a_unit_cgroup_declines_quietly(self):
+        with patch.object(FreeTokenAdapter, "_cgroup_unit_of",
+                          return_value=None), \
+             patch.object(ft.subprocess, "run") as run:
+            result = self.adapter._shield_from_oomd(4242)
+        self.assertFalse(result["applied"])
+        run.assert_not_called()
+
+    def test_cgroup_unit_parsing(self):
+        line = ("0::/user.slice/user-1000.slice/user@1000.service/"
+                "tmux-spawn-307afa5b.scope\n")
+        with patch("builtins.open", mock_open(read_data=line)):
+            self.assertEqual(FreeTokenAdapter._cgroup_unit_of(4242),
+                             "tmux-spawn-307afa5b.scope")
+        with patch("builtins.open", mock_open(read_data="0::/\n")):
+            self.assertIsNone(FreeTokenAdapter._cgroup_unit_of(4242))
+        with patch("builtins.open", side_effect=OSError("gone")):
+            self.assertIsNone(FreeTokenAdapter._cgroup_unit_of(4242))
 
     def test_stop_is_not_reported_done_while_the_port_answers(self):
         """A stop that deletes its own bookkeeping and claims success is how a
@@ -905,6 +955,9 @@ class TestFakeRuntimeIntegration(unittest.TestCase):
              patch.object(ft.subprocess, "Popen", return_value=Process()), \
              patch.object(ft.urllib.request, "urlopen", runtime.urlopen), \
              patch.object(FreeTokenAdapter, "_port_open", return_value=False), \
+             patch.object(FreeTokenAdapter, "_shield_from_oomd",
+                          return_value={"applied": True, "unit": "t.scope"}) \
+             as shield, \
              patch.object(ft.time, "sleep", return_value=None):
             version_run.return_value.stdout = "freetoken version 0.1.2"
             version_run.return_value.stderr = ""
@@ -916,6 +969,9 @@ class TestFakeRuntimeIntegration(unittest.TestCase):
         self.assertEqual(result["model"], "Qwen3.8-27B-NVFP4")
         self.assertEqual(
             Path(self.adapter.pid_file).read_text(encoding="utf-8"), "4242")
+        shield.assert_called_once_with(4242)
+        self.assertEqual(result["oomd_shield"],
+                         {"applied": True, "unit": "t.scope"})
 
     def test_process_dying_before_ready_is_reported_not_waited_out(self):
         class DeadProcess:
