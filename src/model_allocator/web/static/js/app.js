@@ -171,7 +171,16 @@ function applyPanelStructure() {
 }
 
 /* ── 4. Allocation Models ───────────────────────────── */
-var modelsData = [];
+var knownClients = [];
+
+function loadKnownClients() {
+    return fetch("/api/clients")
+        .then(function (resp) { return resp.json(); })
+        .then(function (data) { knownClients = data.clients || []; })
+        .catch(function (err) {
+            console.warn("Failed to load harness clients:", err.message);
+        });
+}
 
 function renderModels() {
     var container = document.getElementById("models-content");
@@ -181,7 +190,7 @@ function renderModels() {
     fetch("/api/models")
         .then(function (resp) { return resp.json(); })
         .then(function (data) {
-            modelsData = data.models || [];
+            var modelsData = data.models || [];
             if (modelsData.length === 0) {
                 var empty = document.createElement("p");
                 empty.className = "empty-state";
@@ -241,6 +250,7 @@ function renderModels() {
                 var st = (m.validation_status || "unknown").toLowerCase();
                 badge.className = "status-badge status-" + st;
                 badge.textContent = lbl("lbl_status_" + st, st);
+                badge.title = lbl("lbl_status_hint", "Status reflects the first allowed harness; Validate checks them all.");
                 tdStatus.appendChild(badge);
                 row.appendChild(tdStatus);
 
@@ -287,9 +297,13 @@ function renderModels() {
             wrapper.appendChild(table);
             container.appendChild(wrapper);
 
+            var hint = document.createElement("p");
+            hint.className = "table-hint";
+            hint.textContent = lbl("lbl_status_hint", "Status reflects the first allowed harness; Validate checks them all.");
+            container.appendChild(hint);
+
             var btnNew = document.createElement("button");
-            btnNew.className = "btn btn-primary";
-            btnNew.style.marginTop = "12px";
+            btnNew.className = "btn btn-primary btn-detached";
             btnNew.textContent = lbl("lbl_btn_new_model", "New Model");
             btnNew.addEventListener("click", function () { showModelModal(null); });
             container.appendChild(btnNew);
@@ -297,6 +311,62 @@ function renderModels() {
         .catch(function (err) {
             container.textContent = lbl("lbl_error_load", "Failed to load data") + ": " + err.message;
         });
+}
+
+function renderValidationResult(alias, result) {
+    var container = document.getElementById("validation-content");
+    if (!container) return;
+    container.textContent = "";
+
+    var card = document.createElement("div");
+    card.className = "dpmtf-card";
+
+    var heading = document.createElement("h3");
+    heading.textContent = lbl("lbl_validation_result", "Validation result") + ": " + alias;
+    card.appendChild(heading);
+
+    var status = (result.validation_status || "unknown").toLowerCase();
+    var badge = document.createElement("span");
+    badge.className = "status-badge status-" + status;
+    badge.textContent = lbl("lbl_status_" + status, status);
+    card.appendChild(badge);
+
+    // What the status means, and what it takes to reach OK.
+    var hintKey = status === "ok" ? "lbl_validation_ok_hint"
+        : status === "warning" ? "lbl_validation_warn_hint"
+        : "lbl_validation_err_hint";
+    var hint = document.createElement("p");
+    hint.className = "validation-hint";
+    hint.textContent = lbl(hintKey, "");
+    card.appendChild(hint);
+
+    var clients = result.validated_clients || [];
+    if (clients.length) {
+        var cl = document.createElement("p");
+        cl.className = "validation-meta";
+        cl.textContent = lbl("lbl_validated_clients", "Validated harnesses") + ": " + clients.join(", ");
+        card.appendChild(cl);
+    }
+
+    function appendLines(items, cssClass) {
+        if (!items || !items.length) return;
+        var list = document.createElement("ul");
+        list.className = cssClass;
+        for (var i = 0; i < items.length; i++) {
+            var li = document.createElement("li");
+            li.textContent = items[i];
+            list.appendChild(li);
+        }
+        card.appendChild(list);
+    }
+    appendLines(result.errors, "validation-errors");
+    appendLines(result.warnings, "validation-warnings");
+
+    container.appendChild(card);
+
+    // Make sure the results are actually visible when the button is pressed.
+    var sg = container.closest(".panel-subgroup");
+    if (sg) sg.classList.remove("collapsed");
 }
 
 function createValidateHandler(alias) {
@@ -312,23 +382,14 @@ function createValidateHandler(alias) {
         })
             .then(function (resp) { return resp.json(); })
             .then(function (result) {
-                var status = (result.validation_status || "unknown").toLowerCase();
-                var lines = [alias + ": " + lbl("lbl_status_" + status, status)];
-                var clients = result.validated_clients || [];
-                if (clients.length) {
-                    lines.push(lbl("lbl_validated_clients", "Validated clients") + ": " + clients.join(", "));
-                }
-                if (result.errors && result.errors.length) {
-                    lines = lines.concat(result.errors);
-                }
-                if (result.warnings && result.warnings.length) {
-                    lines = lines.concat(result.warnings);
-                }
-                alert(lines.join("\n"));
+                renderValidationResult(alias, result);
                 renderModels();
             })
             .catch(function (err) {
-                alert(lbl("lbl_error_validate", "Validation failed") + ": " + err.message);
+                renderValidationResult(alias, {
+                    validation_status: "ERROR",
+                    errors: [lbl("lbl_error_validate", "Validation failed") + ": " + err.message],
+                });
             });
     };
 }
@@ -376,7 +437,7 @@ function createDeleteHandler(alias) {
             .then(function (resp) { return resp.json(); })
             .then(function () { renderModels(); })
             .catch(function (err) {
-                alert("Delete failed: " + err.message);
+                alert(lbl("lbl_error_delete", "Failed to delete") + ": " + err.message);
             });
     };
 }
@@ -438,23 +499,31 @@ function showModelModal(model) {
     var cbWrap = document.createElement("div");
     cbWrap.className = "form-checkbox-group";
 
-    var cbOc = document.createElement("label");
-    cbOc.className = "form-checkbox-label";
-    var ocInput = document.createElement("input");
-    ocInput.type = "checkbox";
-    ocInput.checked = model ? (model.clients.indexOf("opencode") >= 0) : true;
-    cbOc.appendChild(ocInput);
-    cbOc.appendChild(document.createTextNode(" opencode"));
-    cbWrap.appendChild(cbOc);
-
-    var cbCc = document.createElement("label");
-    cbCc.className = "form-checkbox-label";
-    var ccInput = document.createElement("input");
-    ccInput.type = "checkbox";
-    ccInput.checked = model ? (model.clients.indexOf("claude-code") >= 0) : false;
-    cbCc.appendChild(ccInput);
-    cbCc.appendChild(document.createTextNode(" claude-code"));
-    cbWrap.appendChild(cbCc);
+    // One checkbox per known harness client, plus any client this alias
+    // already declares that the vocabulary does not know — the form must be
+    // able to round-trip EVERY client models.yaml names, or saving deletes
+    // the ones it cannot see (measured: pi/headless/freebuff/qwen vanished).
+    var declared = (model && model.clients_declared) ? model.clients_declared : {};
+    var names = knownClients.slice();
+    Object.keys(declared).forEach(function (name) {
+        if (names.indexOf(name) < 0) names.push(name);
+    });
+    var clientInputs = {};
+    names.forEach(function (name) {
+        var cbLab = document.createElement("label");
+        cbLab.className = "form-checkbox-label";
+        var input = document.createElement("input");
+        input.type = "checkbox";
+        if (model) {
+            input.checked = !!declared[name];
+        } else {
+            input.checked = (name === "opencode");
+        }
+        cbLab.appendChild(input);
+        cbLab.appendChild(document.createTextNode(" " + name));
+        cbWrap.appendChild(cbLab);
+        clientInputs[name] = input;
+    });
 
     cbGroup.appendChild(cbWrap);
     form.appendChild(cbGroup);
@@ -468,14 +537,17 @@ function showModelModal(model) {
     btnSave.className = "btn btn-primary";
     btnSave.textContent = lbl("lbl_btn_save", "Save");
     btnSave.addEventListener("click", function () {
+        var clientsBody = {};
+        Object.keys(clientInputs).forEach(function (name) {
+            clientsBody[name] = clientInputs[name].checked;
+        });
         var body = {
             alias: aliasInput.value.trim(),
             real_model: modelInput.value.trim(),
             context: parseInt(ctxInput.value, 10) || 131072,
             runtime_profile: profileInput.value.trim(),
             lifecycle_policy: lifeSelect.value,
-            client_opencode: ocInput.checked,
-            client_claude_code: ccInput.checked,
+            clients: clientsBody,
         };
         fetch("/api/models", {
             method: "POST",
@@ -543,7 +615,11 @@ function renderProfiles() {
 
             var thead = document.createElement("thead");
             var headRow = document.createElement("tr");
-            var cols = ["lbl_col_profile", "lbl_col_backend", "lbl_col_context", "lbl_col_actions"];
+            // Backend first (Human decision 2026-08-30). The third column
+            // used to be headed "Context" while showing the API base, and
+            // "Actions" was a permanently empty cell.
+            var cols = ["lbl_col_backend", "lbl_col_profile", "lbl_col_api_base",
+                        "lbl_col_gpu", "lbl_col_provider"];
             for (var c = 0; c < cols.length; c++) {
                 var th = document.createElement("th");
                 th.textContent = lbl(cols[c], cols[c]);
@@ -557,21 +633,25 @@ function renderProfiles() {
                 var p = profiles[i];
                 var row = document.createElement("tr");
 
-                var tdName = document.createElement("td");
-                tdName.textContent = p.name;
-                row.appendChild(tdName);
-
                 var tdBackend = document.createElement("td");
                 tdBackend.textContent = p.backend;
                 row.appendChild(tdBackend);
+
+                var tdName = document.createElement("td");
+                tdName.textContent = p.name;
+                row.appendChild(tdName);
 
                 var tdApi = document.createElement("td");
                 tdApi.textContent = p.default_api_base || p.api_base_env || "";
                 row.appendChild(tdApi);
 
-                var tdActions = document.createElement("td");
-                tdActions.textContent = "";
-                row.appendChild(tdActions);
+                var tdGpu = document.createElement("td");
+                tdGpu.textContent = p.gpu || "";
+                row.appendChild(tdGpu);
+
+                var tdProvider = document.createElement("td");
+                tdProvider.textContent = p.provider || "";
+                row.appendChild(tdProvider);
 
                 tbody.appendChild(row);
             }
@@ -602,7 +682,7 @@ function renderSystem() {
     btnRun.textContent = lbl("lbl_doctor_run", "Run Doctor");
     btnRun.addEventListener("click", function () {
         var out = document.getElementById("doctor-output");
-        if (out) out.textContent = lbl("lbl_status_running", "Running…");
+        if (out) out.textContent = lbl("lbl_running_progress", "Running…");
         fetch("/api/doctor", { method: "POST" })
             .then(function (resp) { return resp.json(); })
             .then(function (data) {
@@ -616,10 +696,7 @@ function renderSystem() {
 
     var output = document.createElement("pre");
     output.id = "doctor-output";
-    output.style.marginTop = "12px";
-    output.style.fontSize = "0.8rem";
-    output.style.color = "#8b949e";
-    output.style.whiteSpace = "pre-wrap";
+    output.className = "output-pre";
     output.textContent = "";
     card.appendChild(output);
 
@@ -650,10 +727,7 @@ function renderSystem() {
 
     var configPre = document.createElement("pre");
     configPre.id = "config-output";
-    configPre.style.marginTop = "12px";
-    configPre.style.fontSize = "0.8rem";
-    configPre.style.color = "#8b949e";
-    configPre.style.whiteSpace = "pre-wrap";
+    configPre.className = "output-pre";
     configPre.textContent = "";
     configCard.appendChild(configPre);
 
@@ -669,7 +743,7 @@ function renderAll() {
 
 /* ── 9. Init ────────────────────────────────────────── */
 document.addEventListener("DOMContentLoaded", function () {
-    loadLabels().then(function () {
+    Promise.all([loadLabels(), loadKnownClients()]).then(function () {
         initLangDropdown();
         initPanelGroups();
         applyPanelStructure();

@@ -203,8 +203,16 @@ class Resolver:
         return list(self.config.get("runtime_instances", {}) or {})
 
     def get_clients(self, alias_name: str) -> list[str]:
-        """Return the list of declared client keys for an alias."""
+        """Return the ENABLED client keys for an alias.
+
+        A declared-but-false client is a recorded decision not to allow that
+        harness; returning it here made `list` validate aliases against
+        clients they explicitly disable, while the web UI filtered them out
+        — two callers disagreeing about what the same YAML means.
+        """
         models = self.config.get("models", {})
         alias = models.get(alias_name, {})
         clients = alias.get("clients", {})
-        return list(clients.keys()) if isinstance(clients, dict) else []
+        if not isinstance(clients, dict):
+            return []
+        return [name for name, enabled in clients.items() if enabled]

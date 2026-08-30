@@ -156,6 +156,11 @@ tr:hover {
     color: #8b949e;
     border: 1px solid #484f58;
 }
+.status-warning {
+    background: #4d3800;
+    color: #d29922;
+    border: 1px solid #9e6a03;
+}
 
 /* ── Forms ────────────────────────────────────────── */
 .form-group {
@@ -270,6 +275,44 @@ tr:hover {
 }
 .panel-subgroup.collapsed .panel-subgroup-body {
     display: none;
+}
+
+/* ── Validation results ───────────────────────────── */
+.validation-hint {
+    color: #8b949e;
+    font-size: 0.85rem;
+    margin: 8px 0;
+}
+.validation-meta {
+    color: #c9d1d9;
+    font-size: 0.85rem;
+    margin: 4px 0;
+}
+.validation-errors {
+    color: #f85149;
+    font-size: 0.85rem;
+    margin: 8px 0;
+    padding-left: 20px;
+}
+.validation-warnings {
+    color: #d29922;
+    font-size: 0.85rem;
+    margin: 8px 0;
+    padding-left: 20px;
+}
+.table-hint {
+    color: #8b949e;
+    font-size: 0.75rem;
+    margin: 8px 0 0 0;
+}
+.output-pre {
+    margin-top: 12px;
+    font-size: 0.8rem;
+    color: #8b949e;
+    white-space: pre-wrap;
+}
+.btn-detached {
+    margin-top: 12px;
 }
 
 /* ── Utility ──────────────────────────────────────── */

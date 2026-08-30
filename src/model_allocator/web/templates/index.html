@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="da">
+<html lang="en">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -24,7 +24,25 @@
                 <h2 data-slot="lbl_pg_daily">Daily</h2>
                 <span class="panel-group-toggle">&#9660;</span>
             </div>
-            <div class="panel-group-body"></div>
+            <div class="panel-group-body">
+                <!-- Allocation Models subgroup (the everyday overview) -->
+                <section class="panel-subgroup" id="psg-models">
+                    <div class="panel-subgroup-header" data-subgroup="sg_setup_models">
+                        <h3 data-slot="lbl_sg_models">Allocation Models</h3>
+                        <span class="panel-subgroup-toggle">&#9660;</span>
+                    </div>
+                    <div class="panel-subgroup-body" id="models-content"></div>
+                </section>
+
+                <!-- Validation results (written by the Validate buttons above) -->
+                <section class="panel-subgroup" id="psg-validation">
+                    <div class="panel-subgroup-header" data-subgroup="sg_setup_validation">
+                        <h3 data-slot="lbl_sg_validation">Validation</h3>
+                        <span class="panel-subgroup-toggle">&#9660;</span>
+                    </div>
+                    <div class="panel-subgroup-body" id="validation-content"></div>
+                </section>
+            </div>
         </section>
 
         <!-- Journals -->
@@ -61,31 +79,13 @@
                 <span class="panel-group-toggle">&#9660;</span>
             </div>
             <div class="panel-group-body">
-                <!-- Allocation Models subgroup -->
-                <section class="panel-subgroup" id="psg-models">
-                    <div class="panel-subgroup-header" data-subgroup="sg_setup_models">
-                        <h3 data-slot="lbl_sg_models">Allocation Models</h3>
-                        <span class="panel-subgroup-toggle">&#9660;</span>
-                    </div>
-                    <div class="panel-subgroup-body" id="models-content"></div>
-                </section>
-
-                <!-- Runtime Profiles subgroup -->
+                <!-- Backends subgroup (runtime profile definitions) -->
                 <section class="panel-subgroup" id="psg-profiles">
                     <div class="panel-subgroup-header" data-subgroup="sg_setup_profiles">
-                        <h3 data-slot="lbl_sg_profiles">Runtime Profiles</h3>
+                        <h3 data-slot="lbl_sg_profiles">Backends</h3>
                         <span class="panel-subgroup-toggle">&#9660;</span>
                     </div>
                     <div class="panel-subgroup-body" id="profiles-content"></div>
-                </section>
-
-                <!-- Validation subgroup -->
-                <section class="panel-subgroup" id="psg-validation">
-                    <div class="panel-subgroup-header" data-subgroup="sg_setup_validation">
-                        <h3 data-slot="lbl_sg_validation">Validation</h3>
-                        <span class="panel-subgroup-toggle">&#9660;</span>
-                    </div>
-                    <div class="panel-subgroup-body" id="validation-content"></div>
                 </section>
 
                 <!-- System subgroup -->

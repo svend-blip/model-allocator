@@ -247,13 +247,38 @@ class Validator:
             result["client_support"][client] = "UNREACHABLE"
 
     def _validate_sglang(self, resolved: dict, client: str, result: dict) -> None:
+        """Probe the live server first; fall back to static launch checks.
+
+        The static checks (model_path, venv) only matter for STARTING the
+        server. When the health endpoint answers, the alias is usable and
+        the status is OK — before this probe existed, every SGLang alias sat
+        on WARNING and Start could never change it, because nothing here
+        ever looked at the running server.
+        """
+        port = resolved.get("port") or resolved.get("default_port")
+        if port:
+            from model_allocator.adapters import sglang as sglang_adapter
+            try:
+                status = sglang_adapter.SGLangAdapter(resolved).status()
+            except Exception as exc:
+                status = {"running": False, "error": str(exc)}
+            if status.get("running"):
+                result["client_support"][client] = "OK"
+                return
+            result["warnings"].append(
+                f"SGLang server not running on port {port} "
+                f"({status.get('error') or 'health endpoint unreachable'}) — "
+                "Start the alias to reach OK")
+            result["client_support"][client] = "NOT_RUNNING"
+        else:
+            result["client_support"][client] = "OK"
+
         model_path = resolved.get("model_path", "")
         if not model_path:
             result["warnings"].append("model_path not configured for SGLang alias")
         venv = resolved.get("venv", "")
         if venv and not os.path.isdir(venv):
             result["warnings"].append(f"SGLang venv not found: {venv}")
-        result["client_support"][client] = "OK"
 
     def _validate_freetoken(self, resolved: dict, client: str, result: dict) -> None:
         """Check what can be checked without starting a 27B model.

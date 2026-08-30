@@ -141,7 +141,7 @@ ES_TRANSLATIONS = {
     "lbl_page_title": "Model Allocator",
     "lbl_heading_main": "Modelos de asignación",
     "lbl_tab_models": "Modelos de asignación",
-    "lbl_tab_profiles": "Perfiles de runtime",
+    "lbl_tab_profiles": "Backends",
     "lbl_btn_new_model": "Nuevo modelo",
     "lbl_btn_validate": "Validar",
     "lbl_btn_start": "Iniciar",
@@ -158,13 +158,23 @@ ES_TRANSLATIONS = {
     "lbl_col_actions": "Acciones",
     "lbl_col_profile": "Perfil de runtime",
     "lbl_col_lifecycle": "Ciclo de vida",
-    "lbl_col_clients": "Clientes",
+    "lbl_col_clients": "Harness",
+    "lbl_col_api_base": "Base de API",
+    "lbl_col_gpu": "GPU",
+    "lbl_col_provider": "Proveedor",
     "lbl_status_ok": "OK",
     "lbl_status_error": "Error",
+    "lbl_status_warning": "Advertencia",
+    "lbl_status_unknown": "Desconocido",
     "lbl_status_running": "En ejecución",
     "lbl_status_stopped": "Detenido",
     "lbl_status_validating": "Validando...",
-    "lbl_validated_clients": "Clientes validados",
+    "lbl_status_hint": "El estado refleja el primer harness permitido; Validar los comprueba todos.",
+    "lbl_validated_clients": "Harnesses validados",
+    "lbl_validation_result": "Resultado de validación",
+    "lbl_validation_ok_hint": "La configuración es válida.",
+    "lbl_validation_warn_hint": "Utilizable pero incompleta o sin verificar — corrija las advertencias para llegar a OK.",
+    "lbl_validation_err_hint": "Inutilizable hasta corregir los errores.",
     "lbl_lang_label": "Idioma",
     "lbl_pg_setup": "Configuración",
     "lbl_pg_daily": "Diario",
@@ -172,7 +182,7 @@ ES_TRANSLATIONS = {
     "lbl_pg_reports": "Informes",
     "lbl_pg_periodic": "Periódico",
     "lbl_sg_models": "Modelos de asignación",
-    "lbl_sg_profiles": "Perfiles de runtime",
+    "lbl_sg_profiles": "Backends",
     "lbl_sg_validation": "Validación",
     "lbl_sg_system": "Sistema",
     "lbl_field_alias": "Nombre del alias",
@@ -180,20 +190,21 @@ ES_TRANSLATIONS = {
     "lbl_field_context": "Ventana de contexto",
     "lbl_field_runtime_profile": "Perfil de runtime",
     "lbl_field_lifecycle": "Política de ciclo de vida",
-    "lbl_field_clients": "Clientes habilitados",
+    "lbl_field_clients": "Harnesses permitidos",
     "lbl_lifecycle_persistent": "Persistente",
     "lbl_lifecycle_stop_after_step": "Detener tras el paso",
     "lbl_lifecycle_cloud_noop": "Cloud noop",
     "lbl_empty_models": "No hay modelos de asignación configurados",
-    "lbl_empty_profiles": "No hay perfiles de runtime configurados",
+    "lbl_empty_profiles": "No hay backends configurados",
     "lbl_confirm_delete": "¿Seguro que desea eliminar este modelo?",
     "lbl_error_load": "No se pudieron cargar los datos",
     "lbl_error_save": "No se pudo guardar",
+    "lbl_error_delete": "No se pudo eliminar",
     "lbl_error_validate": "Falló la validación",
     "lbl_doctor_title": "Diagnóstico Doctor",
     "lbl_doctor_run": "Ejecutar Doctor",
     "lbl_config_overview": "Resumen de configuración",
-    "lbl_status_running": "Ejecutando…",
+    "lbl_running_progress": "Ejecutando…",
     "lbl_status_loading": "Cargando…",
     "lbl_error_prefix": "Error",
     "lbl_show_config": "Mostrar configuración",
@@ -203,7 +214,7 @@ DE_TRANSLATIONS = {
     "lbl_page_title": "Model Allocator",
     "lbl_heading_main": "Allokationsmodelle",
     "lbl_tab_models": "Allokationsmodelle",
-    "lbl_tab_profiles": "Laufzeitprofile",
+    "lbl_tab_profiles": "Backends",
     "lbl_btn_new_model": "Neues Modell",
     "lbl_btn_validate": "Validieren",
     "lbl_btn_start": "Starten",
@@ -220,13 +231,23 @@ DE_TRANSLATIONS = {
     "lbl_col_actions": "Aktionen",
     "lbl_col_profile": "Laufzeitprofil",
     "lbl_col_lifecycle": "Lebenszyklus",
-    "lbl_col_clients": "Clients",
+    "lbl_col_clients": "Harness",
+    "lbl_col_api_base": "API-Basis",
+    "lbl_col_gpu": "GPU",
+    "lbl_col_provider": "Anbieter",
     "lbl_status_ok": "OK",
     "lbl_status_error": "Fehler",
+    "lbl_status_warning": "Warnung",
+    "lbl_status_unknown": "Unbekannt",
     "lbl_status_running": "Läuft",
     "lbl_status_stopped": "Gestoppt",
     "lbl_status_validating": "Validierung läuft...",
-    "lbl_validated_clients": "Validierte Clients",
+    "lbl_status_hint": "Der Status spiegelt den ersten erlaubten Harness; Validieren prüft alle.",
+    "lbl_validated_clients": "Validierte Harnesses",
+    "lbl_validation_result": "Validierungsergebnis",
+    "lbl_validation_ok_hint": "Die Konfiguration ist gültig.",
+    "lbl_validation_warn_hint": "Nutzbar, aber unvollständig oder ungeprüft — beheben Sie die Warnungen, um OK zu erreichen.",
+    "lbl_validation_err_hint": "Unbrauchbar, bis die Fehler behoben sind.",
     "lbl_lang_label": "Sprache",
     "lbl_pg_setup": "Einrichtung",
     "lbl_pg_daily": "Täglich",
@@ -234,7 +255,7 @@ DE_TRANSLATIONS = {
     "lbl_pg_reports": "Berichte",
     "lbl_pg_periodic": "Periodisch",
     "lbl_sg_models": "Allokationsmodelle",
-    "lbl_sg_profiles": "Laufzeitprofile",
+    "lbl_sg_profiles": "Backends",
     "lbl_sg_validation": "Validierung",
     "lbl_sg_system": "System",
     "lbl_field_alias": "Aliasname",
@@ -242,20 +263,21 @@ DE_TRANSLATIONS = {
     "lbl_field_context": "Kontextfenster",
     "lbl_field_runtime_profile": "Laufzeitprofil",
     "lbl_field_lifecycle": "Lebenszyklus-Richtlinie",
-    "lbl_field_clients": "Aktivierte Clients",
+    "lbl_field_clients": "Erlaubte Harnesses",
     "lbl_lifecycle_persistent": "Persistent",
     "lbl_lifecycle_stop_after_step": "Nach dem Schritt stoppen",
     "lbl_lifecycle_cloud_noop": "Cloud noop",
     "lbl_empty_models": "Keine Allokationsmodelle konfiguriert",
-    "lbl_empty_profiles": "Keine Laufzeitprofile konfiguriert",
+    "lbl_empty_profiles": "Keine Backends konfiguriert",
     "lbl_confirm_delete": "Möchten Sie dieses Modell wirklich löschen?",
     "lbl_error_load": "Daten konnten nicht geladen werden",
     "lbl_error_save": "Speichern fehlgeschlagen",
+    "lbl_error_delete": "Löschen fehlgeschlagen",
     "lbl_error_validate": "Validierung fehlgeschlagen",
     "lbl_doctor_title": "Doctor-Diagnose",
     "lbl_doctor_run": "Doctor ausführen",
     "lbl_config_overview": "Konfigurationsübersicht",
-    "lbl_status_running": "Wird ausgeführt…",
+    "lbl_running_progress": "Wird ausgeführt…",
     "lbl_status_loading": "Wird geladen…",
     "lbl_error_prefix": "Fehler",
     "lbl_show_config": "Konfiguration anzeigen",
@@ -268,7 +290,7 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         ("lbl_page_title", "lbl_page_title", "main", "Model Allocator"),
         ("lbl_heading_main", "lbl_heading_main", "main", "Allocation Models"),
         ("lbl_tab_models", "lbl_tab_models", "main", "Allocation Models"),
-        ("lbl_tab_profiles", "lbl_tab_profiles", "main", "Runtime Profiles"),
+        ("lbl_tab_profiles", "lbl_tab_profiles", "main", "Backends"),
         ("lbl_btn_new_model", "lbl_btn_new_model", "main", "New Model"),
         ("lbl_btn_validate", "lbl_btn_validate", "main", "Validate"),
         ("lbl_btn_start", "lbl_btn_start", "main", "Start"),
@@ -285,13 +307,23 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         ("lbl_col_actions", "lbl_col_actions", "main", "Actions"),
         ("lbl_col_profile", "lbl_col_profile", "main", "Runtime Profile"),
         ("lbl_col_lifecycle", "lbl_col_lifecycle", "main", "Lifecycle"),
-        ("lbl_col_clients", "lbl_col_clients", "main", "Clients"),
+        ("lbl_col_clients", "lbl_col_clients", "main", "Harness"),
+        ("lbl_col_api_base", "lbl_col_api_base", "main", "API base"),
+        ("lbl_col_gpu", "lbl_col_gpu", "main", "GPU"),
+        ("lbl_col_provider", "lbl_col_provider", "main", "Provider"),
         ("lbl_status_ok", "lbl_status_ok", "main", "OK"),
         ("lbl_status_error", "lbl_status_error", "main", "Error"),
+        ("lbl_status_warning", "lbl_status_warning", "main", "Warning"),
+        ("lbl_status_unknown", "lbl_status_unknown", "main", "Unknown"),
         ("lbl_status_running", "lbl_status_running", "main", "Running"),
         ("lbl_status_stopped", "lbl_status_stopped", "main", "Stopped"),
         ("lbl_status_validating", "lbl_status_validating", "main", "Validating..."),
-        ("lbl_validated_clients", "lbl_validated_clients", "main", "Validated clients"),
+        ("lbl_status_hint", "lbl_status_hint", "main", "Status reflects the first allowed harness; Validate checks them all."),
+        ("lbl_validated_clients", "lbl_validated_clients", "main", "Validated harnesses"),
+        ("lbl_validation_result", "lbl_validation_result", "main", "Validation result"),
+        ("lbl_validation_ok_hint", "lbl_validation_ok_hint", "main", "The configuration is valid."),
+        ("lbl_validation_warn_hint", "lbl_validation_warn_hint", "main", "Usable but incomplete or unverified — fix the warnings below to reach OK."),
+        ("lbl_validation_err_hint", "lbl_validation_err_hint", "main", "Unusable until the errors below are fixed."),
         ("lbl_lang_label", "lbl_lang_label", "main", "Language"),
         ("lbl_pg_setup", "lbl_pg_setup", "main", "Setup"),
         ("lbl_pg_daily", "lbl_pg_daily", "main", "Daily"),
@@ -299,7 +331,7 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         ("lbl_pg_reports", "lbl_pg_reports", "main", "Reports"),
         ("lbl_pg_periodic", "lbl_pg_periodic", "main", "Periodic"),
         ("lbl_sg_models", "lbl_sg_models", "main", "Allocation Models"),
-        ("lbl_sg_profiles", "lbl_sg_profiles", "main", "Runtime Profiles"),
+        ("lbl_sg_profiles", "lbl_sg_profiles", "main", "Backends"),
         ("lbl_sg_validation", "lbl_sg_validation", "main", "Validation"),
         ("lbl_sg_system", "lbl_sg_system", "main", "System"),
         ("lbl_field_alias", "lbl_field_alias", "main", "Alias name"),
@@ -307,20 +339,21 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         ("lbl_field_context", "lbl_field_context", "main", "Context window"),
         ("lbl_field_runtime_profile", "lbl_field_runtime_profile", "main", "Runtime profile"),
         ("lbl_field_lifecycle", "lbl_field_lifecycle", "main", "Lifecycle policy"),
-        ("lbl_field_clients", "lbl_field_clients", "main", "Enabled clients"),
+        ("lbl_field_clients", "lbl_field_clients", "main", "Allowed harnesses"),
         ("lbl_lifecycle_persistent", "lbl_lifecycle_persistent", "main", "Persistent"),
         ("lbl_lifecycle_stop_after_step", "lbl_lifecycle_stop_after_step", "main", "Stop after step"),
         ("lbl_lifecycle_cloud_noop", "lbl_lifecycle_cloud_noop", "main", "Cloud noop"),
         ("lbl_empty_models", "lbl_empty_models", "main", "No allocation models configured"),
-        ("lbl_empty_profiles", "lbl_empty_profiles", "main", "No runtime profiles configured"),
+        ("lbl_empty_profiles", "lbl_empty_profiles", "main", "No backends configured"),
         ("lbl_confirm_delete", "lbl_confirm_delete", "main", "Are you sure you want to delete this model?"),
         ("lbl_error_load", "lbl_error_load", "main", "Failed to load data"),
         ("lbl_error_save", "lbl_error_save", "main", "Failed to save"),
+        ("lbl_error_delete", "lbl_error_delete", "main", "Failed to delete"),
         ("lbl_error_validate", "lbl_error_validate", "main", "Validation failed"),
         ("lbl_doctor_title", "lbl_doctor_title", "main", "Doctor Diagnostics"),
         ("lbl_doctor_run", "lbl_doctor_run", "main", "Run Doctor"),
         ("lbl_config_overview", "lbl_config_overview", "main", "Config Overview"),
-        ("lbl_status_running", "lbl_status_running", "main", "Running…"),
+        ("lbl_running_progress", "lbl_running_progress", "main", "Running…"),
         ("lbl_status_loading", "lbl_status_loading", "main", "Loading…"),
         ("lbl_error_prefix", "lbl_error_prefix", "main", "Error"),
         ("lbl_show_config", "lbl_show_config", "main", "Show Config"),
@@ -330,7 +363,7 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         "lbl_page_title": "Model Allocator",
         "lbl_heading_main": "Allokeringsmodeller",
         "lbl_tab_models": "Allokeringsmodeller",
-        "lbl_tab_profiles": "Runtime Profiler",
+        "lbl_tab_profiles": "Backends",
         "lbl_btn_new_model": "Ny Model",
         "lbl_btn_validate": "Valider",
         "lbl_btn_start": "Start",
@@ -347,13 +380,23 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         "lbl_col_actions": "Handlinger",
         "lbl_col_profile": "Runtime Profil",
         "lbl_col_lifecycle": "Livscyklus",
-        "lbl_col_clients": "Klienter",
+        "lbl_col_clients": "Harness",
+        "lbl_col_api_base": "API-base",
+        "lbl_col_gpu": "GPU",
+        "lbl_col_provider": "Udbyder",
         "lbl_status_ok": "OK",
         "lbl_status_error": "Fejl",
+        "lbl_status_warning": "Advarsel",
+        "lbl_status_unknown": "Ukendt",
         "lbl_status_running": "Kører",
         "lbl_status_stopped": "Stoppet",
         "lbl_status_validating": "Validerer...",
-        "lbl_validated_clients": "Validerede klienter",
+        "lbl_status_hint": "Status afspejler den første tilladte harness; Valider tjekker dem alle.",
+        "lbl_validated_clients": "Validerede harnesses",
+        "lbl_validation_result": "Valideringsresultat",
+        "lbl_validation_ok_hint": "Konfigurationen er gyldig.",
+        "lbl_validation_warn_hint": "Brugbar men ufuldstændig eller uverificeret — ret advarslerne herunder for at nå OK.",
+        "lbl_validation_err_hint": "Ubrugelig indtil fejlene herunder er rettet.",
         "lbl_lang_label": "Sprog",
         "lbl_pg_setup": "Opsætning",
         "lbl_pg_daily": "Dagligt",
@@ -361,7 +404,7 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         "lbl_pg_reports": "Rapporter",
         "lbl_pg_periodic": "Periodisk",
         "lbl_sg_models": "Allokeringsmodeller",
-        "lbl_sg_profiles": "Runtime Profiler",
+        "lbl_sg_profiles": "Backends",
         "lbl_sg_validation": "Validering",
         "lbl_sg_system": "System",
         "lbl_field_alias": "Alias navn",
@@ -369,78 +412,93 @@ def _seed_labels(conn: sqlite3.Connection) -> None:
         "lbl_field_context": "Kontekst vindue",
         "lbl_field_runtime_profile": "Runtime profil",
         "lbl_field_lifecycle": "Livscyklus politik",
-        "lbl_field_clients": "Aktiverede klienter",
+        "lbl_field_clients": "Tilladte harnesses",
         "lbl_lifecycle_persistent": "Persistent",
         "lbl_lifecycle_stop_after_step": "Stop efter step",
         "lbl_lifecycle_cloud_noop": "Cloud noop",
         "lbl_empty_models": "Ingen allokeringsmodeller konfigureret",
-        "lbl_empty_profiles": "Ingen runtime profiler konfigureret",
+        "lbl_empty_profiles": "Ingen backends konfigureret",
         "lbl_confirm_delete": "Er du sikker på at du vil slette denne model?",
         "lbl_error_load": "Kunne ikke hente data",
         "lbl_error_save": "Kunne ikke gemme",
+        "lbl_error_delete": "Kunne ikke slette",
         "lbl_error_validate": "Validering fejlede",
         "lbl_doctor_title": "Doctor Diagnostik",
         "lbl_doctor_run": "Kør Doctor",
         "lbl_config_overview": "Konfiguration Oversigt",
-        "lbl_status_running": "Kører…",
+        "lbl_running_progress": "Kører…",
         "lbl_status_loading": "Indlæser…",
         "lbl_error_prefix": "Fejl",
         "lbl_show_config": "Vis konfiguration",
     }
 
+    # Upsert, not insert-if-absent: the labels are seed-owned (there is no
+    # editing UI), so the DB must follow the code. The old insert-only seeding
+    # meant a renamed label text never reached an existing allocator.db, and
+    # non-DA locales were only seeded when the key happened to exist in the
+    # DA dict.
     for label_id, label_key, domain, default_text in labels:
-        existing = conn.execute(
-            "SELECT id FROM ui_labels WHERE label_key = ?", (label_key,)
-        ).fetchone()
-        if not existing:
+        conn.execute(
+            "INSERT INTO ui_labels (label_id, label_key, label_domain, default_text) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(label_key) DO UPDATE SET "
+            "default_text = excluded.default_text, updated_at = CURRENT_TIMESTAMP",
+            (label_id, label_key, domain, default_text),
+        )
+        locale_texts = {
+            "en-US": default_text,
+            "da-DK": da_translations.get(label_key, default_text),
+            # Mandatory locales get REAL translations (12_CODING_STANDARD:
+            # en-US, da-DK, de-DE, es-ES); optional extras fall back to en-US.
+            "de-DE": DE_TRANSLATIONS.get(label_key, default_text),
+            "es-ES": ES_TRANSLATIONS.get(label_key, default_text),
+            "el-GR": default_text,
+            "sv-SE": default_text,
+        }
+        for locale, text in locale_texts.items():
             conn.execute(
-                "INSERT INTO ui_labels (label_id, label_key, label_domain, default_text) VALUES (?, ?, ?, ?)",
-                (label_id, label_key, domain, default_text),
+                "INSERT INTO ui_label_translations (label_id, locale, translated_text) "
+                "VALUES (?, ?, ?) "
+                "ON CONFLICT(label_id, locale) DO UPDATE SET "
+                "translated_text = excluded.translated_text, updated_at = CURRENT_TIMESTAMP",
+                (label_id, locale, text),
             )
-            # Seed en-US translation
-            conn.execute(
-                "INSERT INTO ui_label_translations (label_id, locale, translated_text) VALUES (?, ?, ?)",
-                (label_id, "en-US", default_text),
-            )
-            # Seed da-DK translation if available
-            if label_key in da_translations:
-                conn.execute(
-                    "INSERT OR IGNORE INTO ui_label_translations (label_id, locale, translated_text) VALUES (?, ?, ?)",
-                    (label_id, "da-DK", da_translations[label_key]),
-                )
-                # Mandatory locales get REAL translations (12_CODING_STANDARD:
-                # en-US, da-DK, de-DE, es-ES); optional extras fall back to en-US.
-                for locale, translations in (("de-DE", DE_TRANSLATIONS),
-                                             ("es-ES", ES_TRANSLATIONS)):
-                    conn.execute(
-                        "INSERT OR IGNORE INTO ui_label_translations (label_id, locale, translated_text) VALUES (?, ?, ?)",
-                        (label_id, locale, translations.get(label_key, default_text)),
-                    )
-                for locale in ("el-GR", "sv-SE"):
-                    conn.execute(
-                        "INSERT OR IGNORE INTO ui_label_translations (label_id, locale, translated_text) VALUES (?, ?, ?)",
-                        (label_id, locale, default_text),
-                    )
 
 
 def _seed_panel_subgroups(conn: sqlite3.Connection) -> None:
-    """Seed panel subgroups for allocator UI (idempotent)."""
+    """Seed panel subgroups for allocator UI (idempotent upsert).
+
+    Allocation Models (and the Validation results panel its Validate buttons
+    write into) lives under Daily — it is the everyday overview. The
+    sg_setup_* keys are historic and kept, because user collapse state
+    references them; the group they belong to is data.
+    """
     subgroups = [
-        ("sg_setup_models", "setup", "Allokeringsmodeller", "Allocation Models", 1, 1),
-        ("sg_setup_profiles", "setup", "Runtime Profiler", "Runtime Profiles", 2, 1),
-        ("sg_setup_validation", "setup", "Validering", "Validation", 3, 1),
-        ("sg_setup_system", "setup", "System", "System", 4, 1),
+        ("sg_setup_models", "daily", "Allokeringsmodeller", "Allocation Models", 1, 1),
+        ("sg_setup_validation", "daily", "Validering", "Validation", 2, 1),
+        ("sg_setup_profiles", "setup", "Backends", "Backends", 1, 1),
+        ("sg_setup_system", "setup", "System", "System", 2, 1),
     ]
     for sg_key, group, title_da, title_en, sort_order, is_visible in subgroups:
-        existing = conn.execute(
-            "SELECT subgroup_key FROM panel_subgroups WHERE subgroup_key = ?", (sg_key,)
-        ).fetchone()
-        if not existing:
-            conn.execute(
-                "INSERT INTO panel_subgroups (subgroup_key, group_name, title_da, title_en, sort_order, is_visible) "
-                "VALUES (?, ?, ?, ?, ?, ?)",
-                (sg_key, group, title_da, title_en, sort_order, is_visible),
-            )
+        conn.execute(
+            "INSERT INTO panel_subgroups (subgroup_key, group_name, title_da, title_en, sort_order, is_visible) "
+            "VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(subgroup_key) DO UPDATE SET "
+            "group_name = excluded.group_name, title_da = excluded.title_da, "
+            "title_en = excluded.title_en, sort_order = excluded.sort_order, "
+            "is_visible = excluded.is_visible",
+            (sg_key, group, title_da, title_en, sort_order, is_visible),
+        )
+
+    # Empty groups stay hidden until they gain content (Human decision
+    # 2026-08-30). Deterministic on every start — there is no UI to re-show
+    # them, so a stale 'expanded' row must not resurrect an empty shell.
+    for group in ("journals", "reports", "periodic"):
+        conn.execute(
+            "INSERT OR REPLACE INTO user_panel_groups (user_id, group_name, state, is_visible, updated_at) "
+            "VALUES ('default', ?, 'collapsed', 0, datetime('now'))",
+            (group,),
+        )
 
     mappings = [
         ("lbl_sg_models", "sg_setup_models"),
@@ -551,11 +609,11 @@ async def get_panel_structure():
                 mappings[sub["subgroup_key"]] = [s["slot_key"] for s in slots]
 
             grp_state = conn.execute(
-                "SELECT state FROM user_panel_groups WHERE user_id = 'default' AND group_name = ?",
+                "SELECT state, is_visible FROM user_panel_groups WHERE user_id = 'default' AND group_name = ?",
                 (g,),
             ).fetchone()
             result[g] = {
-                "is_visible": True,
+                "is_visible": bool(grp_state["is_visible"]) if grp_state else True,
                 "state": grp_state["state"] if grp_state else "expanded",
                 "subgroups": [
                     {
@@ -633,6 +691,28 @@ async def save_subgroup_state(request: Request):
 
 
 # ── API: Allocation models ─────────────────────────────────
+#: Harness clients the allocator has adapters or launch knowledge for.
+#: The effective vocabulary is this set UNION whatever aliases already
+#: declare, so a hand-added client key never disappears from the UI.
+KNOWN_CLIENTS = ["opencode", "claude-code", "pi", "headless", "freebuff", "qwen"]
+
+
+@app.get("/api/clients")
+async def list_clients():
+    """The harness-client vocabulary the edit form offers."""
+    raw = load_raw(CONFIG_DIR)
+    declared: list[str] = []
+    for definition in raw["aliases"].values():
+        for client in (definition.get("clients") or {}):
+            if client not in declared:
+                declared.append(client)
+    merged = list(KNOWN_CLIENTS)
+    for client in declared:
+        if client not in merged:
+            merged.append(client)
+    return {"clients": merged}
+
+
 @app.get("/api/models")
 async def list_models():
     """List all allocation models with validation status."""
@@ -661,6 +741,9 @@ async def list_models():
             "context": definition.get("context", 0),
             "lifecycle_policy": definition.get("lifecycle_policy", ""),
             "clients": enabled_clients,
+            # The full declared dict, disabled keys included, so the edit
+            # form can round-trip every client the YAML names.
+            "clients_declared": dict(clients),
             "validation_status": status,
         })
 
@@ -675,15 +758,20 @@ async def create_or_update_model(request: Request):
     if not name:
         raise HTTPException(status_code=400, detail="alias is required")
 
+    # The clients dict arrives whole. The previous shape hardcoded
+    # opencode/claude-code, so saving an alias that declared pi, headless,
+    # freebuff or qwen silently DROPPED those clients from models.yaml.
+    clients_body = body.get("clients")
+    if not isinstance(clients_body, dict) or not clients_body:
+        raise HTTPException(status_code=400, detail="clients dict is required")
+    clients = {str(name): bool(enabled) for name, enabled in clients_body.items()}
+
     definition = {
         "runtime_profile": body.get("runtime_profile", ""),
         "real_model": body.get("real_model", ""),
         "context": int(body.get("context", 131072)),
         "lifecycle_policy": body.get("lifecycle_policy", "stop_after_step"),
-        "clients": {
-            "opencode": bool(body.get("client_opencode", False)),
-            "claude-code": bool(body.get("client_claude_code", False)),
-        },
+        "clients": clients,
     }
 
     try:
@@ -814,22 +902,6 @@ async def stop_model(alias: str):
             return {"status": "error", "stderr": result.stderr[:500] if result.stderr else ""}
     except Exception as e:
         return {"status": "error", "error": str(e)}
-
-
-@app.get("/api/models/{alias}/status")
-async def model_status(alias: str):
-    """Get runtime status for a model."""
-    resolver = Resolver(config_dir=CONFIG_DIR)
-    try:
-        info = resolver.resolve_alias(alias)
-        return {
-            "alias": alias,
-            "backend": info.get("backend", "unknown"),
-            "model": info.get("real_model", "unknown"),
-            "runtime_profile": info.get("runtime_profile", "unknown"),
-        }
-    except Exception as e:
-        return {"alias": alias, "error": str(e)}
 
 
 # ── API: Runtime profiles ──────────────────────────────────
