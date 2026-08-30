@@ -196,6 +196,10 @@ models:
     clients:
       opencode: true
       pi: true
+      # simple-harness (9000 test flows, 2026-08-30): fravaer er ikke
+      # delegering -- the alias must allow the harness client that will
+      # resolve it, the qwen precedent from the 1000 wiring fix.
+      simple-harness: true
   fable5:
     runtime_profile: cloud_anthropic
     real_model: claude-fable-5

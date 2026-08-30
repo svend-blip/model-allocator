@@ -381,6 +381,33 @@ roles:
     client_aliases:
       claude-code: sonnet5
 
+  # 9000 test flows (Human decision 2026-08-30) — the flows that PROVE the
+  # model-allocator + harness-allocator composition. Keys must equal
+  # bridge_roles.role_key exactly. The three chain roles run the
+  # simple-harness interface (native launch); this file answers only the
+  # MODEL half of their identity. The escalation supervisor runs
+  # harness_provider (dsh) and is deliberately absent here.
+  9000-planning-supervisor:
+    default_alias: opus5
+    config_dir: 9000-planning-supervisor
+    client_aliases:
+      claude-code: opus5
+
+  9000-execution-decomposer:
+    default_alias: cloud_minimax
+    client_aliases:
+      simple-harness: cloud_minimax
+
+  9000-implementer:
+    default_alias: cloud_minimax
+    client_aliases:
+      simple-harness: cloud_minimax
+
+  9000-reviewer:
+    default_alias: cloud_minimax
+    client_aliases:
+      simple-harness: cloud_minimax
+
   # lightworker flow. The key must equal bridge_roles.role_key exactly:
   # `model-allocator run` resolves --role against this file and has no
   # --alias form, so a rename on either side breaks the other.
