@@ -512,8 +512,22 @@ models:
     # same count, because far fewer parameters are active — and leaves ~2.6 GB
     # headroom. This is the difference between a model that answers questions
     # and one that can host an agent.
-    num_tokens: 65536
-    # Measured at ready with that KV budget: 30011 MiB in use.
+    #
+    # Raised 65536 -> 81920 on 2026-08-29, Human-authorised, after three
+    # context_length_exceeded failures in one afternoon on flow 1000-02-ELOOP:
+    # 68488, 72598 and 76748 tokens against a 65536 ceiling. The roles were not
+    # being wasteful — reading adapter.py (1063 lines), capabilities.py (928)
+    # and test_whip_adapter.py (495) is 106 KB, and run 020 had just added 433
+    # lines to the last of them. A coding role cannot read its own source and
+    # still have room to work.
+    #
+    # From this server's own log: "Allocating 65536 tokens for KV cache,
+    # K + V = 1.25 GiB" — 19.5 KiB per token. 81920 costs 1.5625 GiB, +320 MiB,
+    # leaving ~944 MiB free against the 1264 the 65536 config ran on all day.
+    # ONE variable changed: memory_ratio stays 0.90, so an OOM here is
+    # unambiguous and the fallback is this line alone.
+    num_tokens: 81920
+    # Measured at ready with the 65536 KV budget: 30011 MiB in use.
     min_free_vram_mib: 30500
     sampling_defaults: model
     reasoning_parser: auto
