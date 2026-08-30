@@ -21,7 +21,9 @@ riding the existing backend/client transport paths.
 
 ---
 
-## Place in the DPMtF Ecosystem
+## Overview
+
+### Place in the DPMtF Ecosystem
 
 Four components, one machine boundary:
 
@@ -359,6 +361,39 @@ wrapper (installed/PATH, used by bridgeV002 subprocess calls).
 
 ---
 
+## Requirements
+
+- Python 3.10+; `pyyaml` is the only runtime dependency (`pip install -e .`).
+- Optional extras: `pip install -e ".[mcp]"` for the trade-MCP invoke path;
+  `fastapi`/`uvicorn` for the web UI.
+- Backends are external (ollama, llama.cpp, SGLang, FreeToken, cloud
+  endpoints) and configured, never bundled.
+
+## Installation
+
+### Install manually
+
+```bash
+git clone https://github.com/svend-blip/model-allocator.git
+cd model-allocator
+python3 -m venv venv && ./venv/bin/pip install -e .
+```
+
+### Install using an Agent
+
+Point your coding agent at this repository and have it run the manual
+steps; there is one dependency and no build step. The machine-specific
+work is the config files (`models.yaml`, `roles.yaml`,
+`runtime_profiles.yaml`) — start from the committed examples and this
+README's Configuration section.
+
+### Verify installation
+
+```bash
+venv/bin/model-allocator list --client opencode
+venv/bin/python -m pytest -q          # the full suite must be green
+```
+
 ## Configuration
 
 Model Allocator resolves from (no source is replaced — all are combined):
@@ -474,6 +509,37 @@ deliberate one-at-a-time port (the trade-engine reclaim sweeps it
 weekdays 14:00Z), and a shared instance needs its own dedicated port
 to coexist. The example above uses 8090; pick whatever port is free
 on your machine, but never 8080.
+
+---
+
+## Running
+
+The allocator is a CLI, not a daemon: `resolve`, `validate`, `list`,
+`start`/`stop`/`unload`, `run`, `render-config`, `preflight` (see the CLI
+section above). Local server backends (llama.cpp, SGLang, FreeToken) are
+started and stopped per alias.
+
+**Web UI (port 9141):**
+
+```bash
+venv/bin/model-allocator-web          # http://localhost:9141
+# ALLOCATOR_WEB_PORT / ALLOCATOR_WEB_HOST override the bind.
+```
+
+The dashboard shows Allocation Models (with per-alias validation status,
+Validate/Start/Stop actions and the edit form), the Backends table
+(runtime profiles), and Doctor diagnostics. It writes through the same
+validated config-writer layer as `config set-alias` — the YAML files stay
+the single source of truth.
+
+## Testing
+
+```bash
+venv/bin/python -m pytest -q
+```
+
+The suite is hermetic (no GPU, no live servers); web endpoint tests run
+against the FastAPI app in-process.
 
 ---
 
@@ -759,7 +825,7 @@ other alias is untouched (guaranteed by tests).
 
 > **Full installation guide:** For comprehensive installation instructions covering all local runtimes
 > (llama.cpp, SGLang, Ollama, OpenCode, Claude Code) and environment configuration, see
-> [`/home/svend/DPMtF-WebUI/SETUP.md`](file:///home/svend/DPMtF-WebUI/SETUP.md).
+> `SETUP.md` in the DPMtF-WebUI checkout (sibling repository).
 
 ## Quick start
 
@@ -798,7 +864,9 @@ python3 -m model_allocator stop --alias llama-test
 
 ---
 
-## Project structure
+## Architecture
+
+### Project structure
 
 ```
 model-allocator/
@@ -899,7 +967,7 @@ model-allocator/
   bridge convention files need that handled via bridge step configuration,
   not prompt parsing in the runner.
 - SGLang adapter requires the model to be downloaded and the venv to be
-  set up before first use (`/home/svend/venvs/sglang`). The adapter does
+  set up before first use (e.g. `~/venvs/sglang`). The adapter does
   not auto-install SGLang or download models.
 - Only one large model (Laguna 23.5 GB or SGLang/Qwen 17 GB) fits in the
   RTX 5090's 32 GB VRAM at a time. The `llama_SG` flow handles this via
