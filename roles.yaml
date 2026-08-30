@@ -353,6 +353,34 @@ roles:
     client_aliases:
       opencode: freetoken-qwen36-35b-a3b
 
+  # 1010 flows — the all-cloud twin of the 1000 setup (Human decision
+  # 2026-08-28), targeting /home/svend/simple-harness. Keys must equal
+  # bridge_roles.role_key exactly. The escalation supervisor runs
+  # harness_provider (dsh) and is deliberately absent here, as in 1000.
+  1010-planning-supervisor:
+    default_alias: opus5
+    config_dir: 1010-planning-supervisor
+    client_aliases:
+      claude-code: opus5
+
+  1010-execution-decomposer:
+    default_alias: cloud_minimax
+    config_dir: 1010-execution-decomposer
+    client_aliases:
+      opencode: cloud_minimax
+
+  1010-implementer:
+    default_alias: cloud_minimax
+    config_dir: 1010-implementer
+    client_aliases:
+      opencode: cloud_minimax
+
+  1010-reviewer:
+    default_alias: sonnet5
+    config_dir: 1010-reviewer
+    client_aliases:
+      claude-code: sonnet5
+
   # lightworker flow. The key must equal bridge_roles.role_key exactly:
   # `model-allocator run` resolves --role against this file and has no
   # --alias form, so a rename on either side breaks the other.
