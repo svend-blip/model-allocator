@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="locale" content="" />
     <title data-slot="lbl_page_title">Loading...</title>
-    <link rel="stylesheet" href="/static/css/theme.css" />
+    <link rel="stylesheet" href="/static/css/theme.css?v=2" />
 </head>
 <body>
     <main class="container">
@@ -100,6 +100,9 @@
         </section>
     </main>
 
-    <script src="/static/js/app.js"></script>
+    <!-- Bump ?v= on every JS/CSS change: browsers cache static assets and a
+         stale app.js renders yesterday's UI against today's API (measured
+         2026-08-30 — the harness checkboxes). DPMtF's ?v= convention. -->
+    <script src="/static/js/app.js?v=2"></script>
 </body>
 </html>
