@@ -183,8 +183,35 @@ def build_opencode_command(
     }
 
 
+#: mcp-light — the read-only governance/flow context server every role may
+#: consult (streamable-http). Attached to every NON-EMPTY rendered config so
+#: roles can fetch delivery protocol and governance from the same DB the
+#: dispatch machinery enforces against, instead of learning it one rejection
+#: at a time (Human-directed 2026-08-29). Override with MCP_LIGHT_URL.
+MCP_LIGHT_DEFAULT_URL = "http://127.0.0.1:9135/mcp"
+
+
 def build_opencode_config(resolved: dict) -> dict[str, Any]:
-    """Emit an opencode.json content dict for the resolved alias."""
+    """Emit an opencode.json content dict for the resolved alias.
+
+    Wraps the per-backend base config and attaches the mcp-light server.
+    A deliberately EMPTY base config (OpenCode's own defaults) stays empty —
+    turning it non-empty would change client behavior for those backends.
+    """
+    config = _build_opencode_config_base(resolved)
+    if not config:
+        return config
+    url = os.environ.get("MCP_LIGHT_URL", MCP_LIGHT_DEFAULT_URL)
+    config.setdefault("mcp", {})["mcp-light"] = {
+        "type": "remote",
+        "url": url,
+        "enabled": True,
+    }
+    return config
+
+
+def _build_opencode_config_base(resolved: dict) -> dict[str, Any]:
+    """Per-backend opencode.json content for the resolved alias."""
     backend = resolved.get("backend")
     provider = resolved.get("provider", "")
 

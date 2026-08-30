@@ -659,7 +659,13 @@ class TestCliV2(unittest.TestCase):
             data = json.loads(output_path.read_text(encoding="utf-8"))
             self.assertEqual(data["$schema"], existing["$schema"])
             self.assertEqual(data["permission"], existing["permission"])
-            self.assertEqual(data["mcp"], existing["mcp"])
+            # mcp merges like providers now: hand-added entries survive BY
+            # NAME, and the renderer's mcp-light attachment is set beside
+            # them (2026-08-29). Exact-equality asserted the pre-mcp-light
+            # world and rejected the attachment working as designed.
+            self.assertEqual(data["mcp"]["servers"], existing["mcp"]["servers"])
+            self.assertIn("mcp-light", data["mcp"])
+            self.assertEqual(data["mcp"]["mcp-light"]["type"], "remote")
             self.assertIn("minimax", data["provider"])
             self.assertEqual(data["model"], "openrouter/qwen3-30b-a3b")
             self.assertIn("openrouter", data["provider"])

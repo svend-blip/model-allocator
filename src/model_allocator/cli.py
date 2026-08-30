@@ -713,6 +713,18 @@ def _merge_opencode_config(existing: dict, rendered: dict, provider_key: str) ->
         for provider_name, provider_config in rendered_provider.items():
             merged["provider"][provider_name] = provider_config
 
+    # mcp servers merge the same way providers do: rendered entries are
+    # set/updated by name, hand-added entries under other names survive.
+    # Before this, the merge dropped every NEW top-level key the renderer
+    # learned to emit — the mcp-light attachment rendered correctly and
+    # then vanished at the write (measured 2026-08-29).
+    rendered_mcp = rendered.get("mcp", {})
+    if rendered_mcp:
+        merged.setdefault("mcp", {})
+        merged["mcp"] = dict(merged["mcp"])
+        for server_name, server_config in rendered_mcp.items():
+            merged["mcp"][server_name] = server_config
+
     return merged
 
 
