@@ -543,6 +543,7 @@ models:
       cuda_major: 13
     clients:
       opencode: true
+      pi: true
       # qwen stays declared: the client CAN reach this alias, and the launch
       # path built for it works. What does not work is the pairing — Qwen
       # Code cannot be told this alias holds 49152 rather than the 262144 it
