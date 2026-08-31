@@ -9,7 +9,7 @@
 > validated, and resolved* across local Ollama, llama.cpp (TurboQuant), cloud
 > OpenAI-compatible APIs, and Minimax.
 
-Status: **V1A → V6, fully built and live-validated.** 279 tests. All
+Status: **V1A → V6, fully built and live-validated.** 363 tests. All
 adapters validated against real backends. Wired into the Father WebUI,
 including a full config dashboard (alias/role CRUD). V5 adds ONYX as an
 OPTIONAL invoke-only knowledge runtime + a generic headless client that
@@ -137,6 +137,7 @@ permanently until restarted.
 
 - **Claude Code** supports Ollama + OpenRouter (Anthropic-compatible endpoints). Minimax via Claude Code is rejected (no Anthropic-compatible endpoint) — `validate` returns a clear ERROR.
 - **OpenCode** supports Ollama + OpenRouter + Minimax (built-in) + openai_compatible.
+- **Pi** supports its built-in provider ids plus custom openai-compatible providers declared through `models.json` — including the local FreeToken Qwen alias (declared as a client 2026-08-31, DPMtF run 016).
 
 ---
 
