@@ -348,10 +348,13 @@ roles:
       opencode: freetoken-qwen36-35b-a3b
 
   1000-implementer:
-    default_alias: freetoken-qwen36-35b-a3b
+    # Switched to cloud_minimax 2026-08-31 (run 011 escalation boundary:
+    # four consecutive evidence-discipline failures on the local MoE;
+    # Human-delegated model authority, see runs/011/RUN-LEDGER.md).
+    default_alias: cloud_minimax
     config_dir: 1000-implementer
     client_aliases:
-      opencode: freetoken-qwen36-35b-a3b
+      opencode: cloud_minimax
 
   # 1010 flows — the all-cloud twin of the 1000 setup (Human decision
   # 2026-08-28), targeting /home/svend/simple-harness. Keys must equal
