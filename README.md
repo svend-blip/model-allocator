@@ -1,5 +1,33 @@
 # Model Allocator
 
+## DPMtF — The right model, the right harness, the right role
+
+**DPMtF (Deterministic Process Management to Finalisation)** is an open-source framework for coordinating multiple AI agents, models, and coding tools through a controlled process from defined intent to verified completion.
+
+Instead of using the same — and often most expensive — LLM for every task, DPMtF is designed around assigning **the model that best fits each role**.
+
+A powerful premium model can be used for architecture, planning, supervision, or difficult decisions, while lower-cost cloud models or local models can handle implementation, routine work, decomposition, or parts of the review process. The Model Allocator keeps model selection separate from the workflow itself, allowing roles to move between local and cloud-based models without redesigning the process.
+
+The same principle applies to the tools surrounding the model.
+
+DPMtF supports multiple **coding harnesses**, including Codex, Claude Code, OpenCode, DeepSeek Harness, Whip, Simple Harness, and others. The Harness Allocator keeps harness selection separate from model selection, because the best harness is not necessarily the same for every model or every role.
+
+A powerful cloud agent may benefit from a feature-rich coding harness, while a local model may perform better through a lighter harness with less overhead. DPMtF therefore treats the model and the harness as separate parts of the execution configuration rather than forcing every agent through the same toolchain.
+
+At the center, **[DPMtF-WebUI](https://github.com/svend-blip/DPMtF-WebUI)** coordinates flows, roles, governance, dispatch, gates, and verification. **[Model Allocator](https://github.com/svend-blip/model-allocator)** resolves and manages the models. **[Harness Allocator](https://github.com/svend-blip/harness-allocator)** provides the appropriate coding environment. **[mcp-light](https://github.com/svend-blip/mcp-light)** gives agents controlled, read-only access to governance and project context. **[DPMtF-LightWorker](https://github.com/svend-blip/DPMtF-LightWorker)** allows execution to be distributed to other machines while the central DPMtF system remains in control.
+
+The result is an AI workflow that can be optimized per role for **capability, cost, speed, local hardware, privacy, and tooling** instead of using premium models and heavyweight tools everywhere.
+
+DPMtF is not about finding one AI agent that can do everything.
+
+It is about building a governed AI team where different agents can do what they are best suited for — and where their work is moved through a deterministic process toward a verified result.
+
+**The right model, the right harness, the right role — premium resources only where they add value.**
+
+**The DPMtF ecosystem:** [DPMtF-WebUI](https://github.com/svend-blip/DPMtF-WebUI) · [model-allocator](https://github.com/svend-blip/model-allocator) · [harness-allocator](https://github.com/svend-blip/harness-allocator) · [mcp-light](https://github.com/svend-blip/mcp-light) · [DPMtF-LightWorker](https://github.com/svend-blip/DPMtF-LightWorker) · [simple-harness](https://github.com/svend-blip/simple-harness)
+
+---
+
 > A validated runtime/model-alias layer for the DPMtF ecosystem
 > (DPMtF — Deterministic Process Management to Finalisation: a deterministic
 > multi-agent process orchestration framework for taking defined work from
