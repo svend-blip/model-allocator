@@ -44,6 +44,19 @@ runtime_profiles:
     default_api_base: https://openrouter.ai/api
     provider: openrouter
 
+  # DIRECT at DeepSeek — no OpenRouter, no local relay (Human decision
+  # 2026-09-01, the 9010 flows). The base is DeepSeek's own
+  # Anthropic-compatible surface, which is the documented way to drive
+  # Claude Code against DeepSeek; the claude-code adapter's
+  # openai_compatible branch turns it into ANTHROPIC_BASE_URL +
+  # ANTHROPIC_AUTH_TOKEN=$DEEPSEEK_API_KEY. Live-verified 2026-09-01.
+  cloud_deepseek_direct:
+    backend: openai_compatible
+    api_base_env: DEEPSEEK_API_BASE
+    api_key_env: DEEPSEEK_API_KEY
+    default_api_base: https://api.deepseek.com/anthropic
+    provider: deepseek
+
   cloud_anthropic:
     backend: anthropic
     api_key_env: ANTHROPIC_API_KEY

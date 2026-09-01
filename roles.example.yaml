@@ -72,3 +72,12 @@ roles:
     default_alias: cloud_minimax
     client_aliases:
       opencode: cloud_minimax
+
+  # ── DPMtF 9010 flows (migration 093) — PLOOP planning supervisor ─────
+  # DeepSeek V4 Pro DIRECT at DeepSeek over claude-code. The 9010 ELOOP
+  # roles run codex as a native harness (harness_provider) and therefore
+  # need no entry here.
+  9010-planning-supervisor:
+    default_alias: cloud_deepseek
+    client_aliases:
+      claude-code: cloud_deepseek

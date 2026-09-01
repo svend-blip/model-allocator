@@ -52,6 +52,17 @@ models:
       opencode: true
       claude-code: false
 
+  # The alias DPMtF's shipped experimental 9010 flows resolve for the
+  # planning supervisor: DeepSeek V4 Pro DIRECT at DeepSeek over the
+  # claude-code client. Model id verified against DeepSeek's /models.
+  cloud_deepseek:
+    runtime_profile: cloud_deepseek_direct
+    real_model: deepseek-v4-pro
+    context: 131072
+    lifecycle_policy: cloud_noop
+    clients:
+      claude-code: true
+
   openrouter-test:
     runtime_profile: cloud_openrouter
     real_model: qwen3-30b-a3b
