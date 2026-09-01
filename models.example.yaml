@@ -34,6 +34,24 @@ models:
       opencode: true
       claude-code: false
 
+  # The alias DPMtF-WebUI's shipped example flows resolve (migration 091:
+  # example-cloud, example-01-PLOOP, example-02-ELOOP — every role runs
+  # cloud_minimax over OpenCode, so MINIMAX_API_KEY is the only credential
+  # a fresh install needs). Values mirror the production alias: output is
+  # capped at 64k because OpenCode never needs more in a single reply and
+  # the cap keeps a runaway turn from billing a full 128k completion.
+  # claude-code is deliberately absent: the claude_code adapter rejects
+  # provider=minimax (no Anthropic-shaped support at the time of writing).
+  cloud_minimax:
+    runtime_profile: cloud_minimax
+    real_model: MiniMax-M3
+    context: 1000000
+    max_output_tokens: 65536
+    lifecycle_policy: cloud_noop
+    clients:
+      opencode: true
+      claude-code: false
+
   openrouter-test:
     runtime_profile: cloud_openrouter
     real_model: qwen3-30b-a3b

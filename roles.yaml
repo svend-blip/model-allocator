@@ -444,3 +444,48 @@ roles:
     config_dir: oc_imple01
     client_aliases:
       opencode: cloud_minimax
+
+  # ── DPMtF-WebUI shipped example flows (migration 091) ─────────────────
+  # Role keys match bridge_roles.role_key EXACTLY (the allocator role-key
+  # contract). All eight resolve cloud_minimax over OpenCode — the same
+  # block ships in roles.example.yaml so a fresh cross-repo install works
+  # with a single MINIMAX_API_KEY.
+  ex-super-cl:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  ex-imple-cl:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  ex-review-cl:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  example-planning-supervisor:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  example-execution-decomposer:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  example-implementer:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  example-reviewer:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  example-escalation-supervisor:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax

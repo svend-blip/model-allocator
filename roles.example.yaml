@@ -26,3 +26,49 @@ roles:
     default_alias: company-knowledge
     client_aliases:
       headless: company-knowledge
+
+  # ── DPMtF-WebUI shipped example flows (migration 091) ─────────────────
+  # Role keys match bridge_roles.role_key EXACTLY (the allocator role-key
+  # contract). All eight resolve cloud_minimax over OpenCode so a fresh
+  # cross-repo install needs a single MINIMAX_API_KEY. example-cloud is
+  # the 1-flow example; the example-* roles below it serve the
+  # PLOOP/ELOOP 2-flow example pair.
+  ex-super-cl:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  ex-imple-cl:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  ex-review-cl:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  example-planning-supervisor:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  example-execution-decomposer:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  example-implementer:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  example-reviewer:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
+
+  example-escalation-supervisor:
+    default_alias: cloud_minimax
+    client_aliases:
+      opencode: cloud_minimax
