@@ -46,3 +46,18 @@ htmlcov/
 .ruff_cache/
 allocator.db
 .worktrees/
+
+# Generic database and backup patterns (added 2026-09-01 — allocator.db
+# was tracked despite the literal rule above because ignore rules never
+# apply to already-tracked files; the web app recreates and re-seeds the
+# DB from code on first run, so nothing is lost by untracking it)
+*.db
+*.sqlite*
+*.db-wal
+*.db-shm
+*.bak
+*.old
+*.orig
+*~
+*.pid
+.claude/settings.local.json
