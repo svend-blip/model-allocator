@@ -247,7 +247,10 @@ models:
       # same one-line arithmetic answer cost 104 output tokens at the
       # default effort, 59 at low; the endpoint honours Claude's effort
       # field, so Claude Code's own effort setting is the lever.
-      CLAUDE_CODE_EFFORT_LEVEL: medium
+      # 2026-09-02 18:15, Human: low from the cycle after Run 019. Measured
+      # on medium in the 019 kickoff session: 93 % of generated text was
+      # thinking (39k chars vs 3k visible) over 43 turns of checklist work.
+      CLAUDE_CODE_EFFORT_LEVEL: low
     # Human decision 2026-09-02: acceptEdits, not auto mode — auto mode's
     # classifier is a second model call per shell command through the same
     # Token Plan endpoint; it timed out three times and refused a legitimate
