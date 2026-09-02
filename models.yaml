@@ -210,11 +210,12 @@ models:
     # `qwen3.8-max` (no date suffix; `qwen3.8-max-0902` is "Model not
     # exist" there — measured 2026-09-02). Declared by the Human: chat
     # completions, streaming, tools, reasoning and vision; context
-    # 1,000,000. Output capped at 64k like cloud_minimax: no client needs
-    # more in one reply and the cap bounds a runaway turn.
+    # 1,000,000. Output ceiling = the model's own maximum completion
+    # (131,072 tokens; reasoning tokens count against it on this endpoint,
+    # so a lower cap would cut a long-thinking turn short).
     real_model: qwen3.8-max
     context: 1000000
-    max_output_tokens: 65536
+    max_output_tokens: 131072
     lifecycle_policy: cloud_noop
     # opencode and simple-harness reach it through the generic OpenAI-
     # compatible path. pi is absent: Pi's first-party provider table has no
@@ -232,7 +233,7 @@ models:
     # subagents on qwen3.7-max, everything else on qwen3.8-max.
     real_model: qwen3.8-max
     context: 983616
-    max_output_tokens: 65536
+    max_output_tokens: 131072
     lifecycle_policy: cloud_noop
     claude_env:
       ANTHROPIC_MODEL: qwen3.8-max
