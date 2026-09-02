@@ -1,8 +1,12 @@
 {
   "permissions": {
     "defaultMode": "acceptEdits",
-    "allow": ["Bash(*)", "Read", "Edit", "Write", "Glob", "Grep", "mcp__mcp-light__*"],
-    "deny": [
+    "allow": [
+  "Bash(*)", "Read", "Edit", "Write", "Glob", "Grep",
+  "mcp__mcp-light__*",
+  "Monitor", "TaskStop", "TaskOutput", "SendMessage", "ListAgents"
+],	
+   "deny": [
       "Bash(git push --force*)", "Bash(git push -f *)", "Bash(git reset --hard*)",
       "Bash(git clean *)", "Bash(git branch -D *)",
       "Bash(rm -rf /*)", "Bash(rm -rf ~*)", "Bash(pkill -9 *)", "Bash(killall *)"
