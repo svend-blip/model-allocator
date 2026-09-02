@@ -216,6 +216,10 @@ models:
     real_model: qwen3.8-max
     context: 1000000
     max_output_tokens: 131072
+    # Human 2026-09-02: low reasoning effort for the authoring roles (decomposer)
+    # from the cycle after 9000 Run 019; measured 80 reasoning tokens default vs
+    # 46 low for the same answer.
+    reasoning_effort: low
     lifecycle_policy: cloud_noop
     # opencode and simple-harness reach it through the generic OpenAI-
     # compatible path. pi is absent: Pi's first-party provider table has no

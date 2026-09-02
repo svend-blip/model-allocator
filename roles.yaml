@@ -412,10 +412,11 @@ roles:
   9000-implementer:
     # Human decision 2026-09-02 (Run 018 closure): implementer moves to
     # Qwen3.8-Max via the Token Plan after five MiniMax shell-loop overflows
-    # in one day; decomposer and reviewer stay on cloud_minimax for comparison.
-    default_alias: cloud_qwen38max
+    # in one day. From the cycle after Run 019: thinking off (cloud_qwen38max-
+    # fast) — the implementer executes fully specified handoffs.
+    default_alias: cloud_qwen38max-fast
     client_aliases:
-      simple-harness: cloud_qwen38max
+      simple-harness: cloud_qwen38max-fast
 
   9000-reviewer:
     default_alias: cloud_minimax
