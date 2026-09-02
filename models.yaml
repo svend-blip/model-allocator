@@ -242,6 +242,12 @@ models:
       ANTHROPIC_DEFAULT_OPUS_MODEL: qwen3.8-max
       CLAUDE_CODE_SUBAGENT_MODEL: qwen3.7-max
       CLAUDE_CODE_MAX_CONTEXT_TOKENS: "983616"
+      # Human decision 2026-09-02: medium reasoning effort for the planning
+      # supervisor. Measured on the Token Plan's Anthropic endpoint: the
+      # same one-line arithmetic answer cost 104 output tokens at the
+      # default effort, 59 at low; the endpoint honours Claude's effort
+      # field, so Claude Code's own effort setting is the lever.
+      CLAUDE_CODE_EFFORT_LEVEL: medium
     clients:
       claude-code: true
 
