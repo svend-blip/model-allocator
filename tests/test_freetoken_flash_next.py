@@ -193,9 +193,13 @@ class TestAliasConfiguration(unittest.TestCase):
         self.assertEqual(alias["qualification"]["auto_selected"]["nvfp4_backend"],
                          "triton")
 
-    def test_reasoning_effort_is_not_runtime_configuration(self):
+    def test_reasoning_effort_is_a_per_request_field(self):
+        """reasoning_effort is not launch configuration (never an argv flag);
+        it is the per-request level the harness sends. Role use pins low."""
         alias = yaml.safe_load((REPO_ROOT / "models.yaml").read_text())["models"][ALIAS]
-        self.assertNotIn("reasoning_effort", alias)
+        self.assertEqual(alias.get("reasoning_effort"), "low")
+        self.assertNotIn("reasoning_effort", dict(ft._VALUE_FLAGS))
+        self.assertNotIn("reasoning_effort", dict(ft._BOOL_FLAGS))
         self.assertEqual(alias["qualification"]["reasoning_efforts"],
                          ["low", "medium", "xhigh"])
 
@@ -220,11 +224,13 @@ class TestAliasConfiguration(unittest.TestCase):
         issues = schema.validate_profile(PROFILE, profiles["runtime_profiles"][PROFILE])
         self.assertEqual([i.message for i in issues], [])
 
-    def test_alias_is_not_assigned_to_any_role(self):
+    def test_alias_is_assigned_only_to_the_implementer(self):
+        """Human decision 2026-09-02: 9000-implementer runs on Flash-Next."""
         roles = yaml.safe_load((REPO_ROOT / "roles.yaml").read_text())["roles"]
         for name, role in roles.items():
-            self.assertNotEqual(role.get("default_alias"), ALIAS, name)
-            self.assertNotIn(ALIAS, (role.get("client_aliases") or {}).values(), name)
+            uses = (role.get("default_alias") == ALIAS
+                    or ALIAS in (role.get("client_aliases") or {}).values())
+            self.assertEqual(uses, name == "9000-implementer", name)
 
     def test_resolver_resolves_the_alias(self):
         with patch.dict(os.environ, {ENV_NAME: "/qualified/venv/bin/ft"}):

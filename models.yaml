@@ -705,6 +705,10 @@ models:
     # at ~46 tok/s; a 112k-token prompt prefills in 25 s and answers correctly.
     moe_cache_auto: true
     kv_reserve_tokens: 131072
+    # Role use (9000-implementer): fully specified handoffs, no deliberation.
+    # The endpoint's default is xhigh; low is sent per request via
+    # SIMPLE_HARNESS_REASONING_EFFORT.
+    reasoning_effort: low
     # Measured at ready: ~27.7 GiB (28365 MiB) in use, ~2.7 GiB free. An
     # exclusive workload — refuse up front rather than OOM after minutes.
     min_free_vram_mib: 28500

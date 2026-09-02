@@ -414,9 +414,14 @@ roles:
     # Qwen3.8-Max via the Token Plan after five MiniMax shell-loop overflows
     # in one day. From the cycle after Run 019: thinking off (cloud_qwen38max-
     # fast) — the implementer executes fully specified handoffs.
-    default_alias: cloud_qwen38max-fast
+    # Human decision 2026-09-02 (23:20): the local FreeToken Flash-Next
+    # replaces Qwen Cloud for the implementer at the next chain pause.
+    # Measured: TTFT 2.5-3.7 s without reasoning, ~46 tok/s, 131k KV floor,
+    # simple-harness tool calls (write_file/shell/read_file) pass. Previous:
+    # cloud_qwen38max-fast.
+    default_alias: freetoken-qwen38-flash-next
     client_aliases:
-      simple-harness: cloud_qwen38max-fast
+      simple-harness: freetoken-qwen38-flash-next
 
   9000-reviewer:
     default_alias: cloud_deepseek_v4pro
