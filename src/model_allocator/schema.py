@@ -50,6 +50,11 @@ COMMON_ALIAS_FIELDS: dict[str, object] = {
     "disable_adaptive_thinking": bool,
     "claude_binary": str,
     "claude_extra_args": list,
+    # Extra environment for the claude-code client — the model-role mapping
+    # an Anthropic-shaped third-party endpoint needs (ANTHROPIC_DEFAULT_*_MODEL,
+    # CLAUDE_CODE_SUBAGENT_MODEL, CLAUDE_CODE_MAX_CONTEXT_TOKENS). The adapter
+    # keeps its own keys (base URL, auth token, --model) authoritative.
+    "claude_env": dict,
     # Pi frontend. `pi_tools` is the one of these that carries governance
     # rather than configuration: it is an allowlist the client enforces, so a
     # reviewer that must not write can be prevented from writing instead of

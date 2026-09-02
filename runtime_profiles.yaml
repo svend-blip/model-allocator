@@ -65,6 +65,16 @@ runtime_profiles:
     default_api_base: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode
     provider: qwencloud
 
+  qwencloud_anthropic:
+    backend: openai_compatible
+    api_base_env: DASHSCOPE_ANTHROPIC_BASE
+    api_key_env: DASHSCOPE_API_KEY
+    # The Token Plan's Anthropic-shaped endpoint on the same host as the
+    # qwencloud profile; drives the claude-code client (messages round-trip
+    # on qwen3.8-max verified 2026-09-02). Same sk-sp- key as qwencloud.
+    default_api_base: https://token-plan.ap-southeast-1.maas.aliyuncs.com/apps/anthropic
+    provider: qwencloud
+
   cloud_deepseek_direct:
     backend: openai_compatible
     api_base_env: DEEPSEEK_API_BASE

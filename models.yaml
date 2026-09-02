@@ -223,6 +223,26 @@ models:
       opencode: true
       simple-harness: true
 
+  cloud_qwen38max-claude:
+    runtime_profile: qwencloud_anthropic
+    # Qwen3.8-Max for the claude-code client via the Token Plan's Anthropic
+    # endpoint. Context follows the plan's documented Claude Code ceiling
+    # (CLAUDE_CODE_MAX_CONTEXT_TOKENS 983616). The role mapping below is
+    # the plan's own quickstart: background/haiku work on qwen3.6-flash,
+    # subagents on qwen3.7-max, everything else on qwen3.8-max.
+    real_model: qwen3.8-max
+    context: 983616
+    max_output_tokens: 65536
+    lifecycle_policy: cloud_noop
+    claude_env:
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: qwen3.6-flash
+      ANTHROPIC_DEFAULT_SONNET_MODEL: qwen3.8-max
+      ANTHROPIC_DEFAULT_OPUS_MODEL: qwen3.8-max
+      CLAUDE_CODE_SUBAGENT_MODEL: qwen3.7-max
+      CLAUDE_CODE_MAX_CONTEXT_TOKENS: "983616"
+    clients:
+      claude-code: true
+
   fable5:
     runtime_profile: cloud_anthropic
     real_model: claude-fable-5

@@ -109,6 +109,22 @@ def build_claude_code_command(resolved: dict) -> dict[str, Any]:
     if alias:
         env["MODEL_ALLOCATOR_ACTIVE_MODEL"] = alias
 
+    # Alias-declared client environment: an Anthropic-shaped third-party
+    # endpoint serves several model ids and Claude Code addresses them by
+    # role (haiku for background work, sonnet/opus defaults, the subagent
+    # model, the context ceiling). Those names live on the alias as
+    # `claude_env`. The adapter's own keys stay authoritative: the endpoint,
+    # the credential and the main model are resolved above and cannot be
+    # redirected from the alias.
+    owned = {"ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY",
+             "MODEL_ALLOCATOR_ACTIVE_MODEL"}
+    claude_env = resolved.get("claude_env") or {}
+    if isinstance(claude_env, dict):
+        for key, value in claude_env.items():
+            if key in owned or key in unset_env:
+                continue
+            env[str(key)] = str(value)
+
     # Extra args (e.g. --bare) — come BEFORE --model
     extra_args = resolved.get("claude_extra_args", [])
     if not isinstance(extra_args, list):
