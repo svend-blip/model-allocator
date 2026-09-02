@@ -399,9 +399,9 @@ roles:
       claude-code: cloud_qwen38max-claude
 
   9000-execution-decomposer:
-    default_alias: cloud_minimax
+    default_alias: cloud_qwen38max
     client_aliases:
-      simple-harness: cloud_minimax
+      simple-harness: cloud_qwen38max
 
   9000-implementer:
     # Human decision 2026-09-02 (Run 018 closure): implementer moves to
