@@ -140,3 +140,23 @@ runtime_profiles:
     default_host: 127.0.0.1
     gpu: cuda0
     qualified_runtime_version: "0.1.2"
+
+  # Second FreeToken install, for Qwen3.8-Flash-Next-NVFP4. The qualification
+  # ran from its own venv (`ft` 0.1.2 in a separate checkout), not the one
+  # ${FREETOKEN_BIN} names, so it gets its own placeholder. executable_env
+  # names the variable so an unset one is reported by name — and pins the
+  # install: no PATH fallback, because a different `ft` is an unqualified
+  # runtime, not a substitute.
+  #
+  # Port 8090 is the port the qualification used. It is also the port of the
+  # laguna-shared-118b llama-server instance; both are whole-card workloads
+  # and cannot coexist anyway, and the adapter classifies whatever holds the
+  # port before starting — a foreign occupant is refused, never disturbed.
+  freetoken_qwen38_cuda0:
+    backend: freetoken
+    executable: ${FREETOKEN_QWEN38_BIN}
+    executable_env: FREETOKEN_QWEN38_BIN
+    default_port: 8090
+    default_host: 127.0.0.1
+    gpu: cuda0
+    qualified_runtime_version: "0.1.2"

@@ -27,6 +27,7 @@ interface is the harness allocator's authority, and the seam between them is
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -39,6 +40,35 @@ import time
 import urllib.error
 import urllib.request
 from pathlib import Path
+
+# Failure classes. A start() or readiness() result that is not a success
+# carries one of these under `code`, so a caller can tell an incomplete
+# download from a crashed process from a port held by someone else without
+# parsing prose. They are strings rather than an enum because every result
+# in this package is a plain dict that ends up in JSON.
+MODEL_CACHE_INCOMPLETE = "MODEL_CACHE_INCOMPLETE"
+RUNTIME_START_FAILED = "RUNTIME_START_FAILED"
+RUNTIME_NOT_READY = "RUNTIME_NOT_READY"
+MODEL_IDENTITY_MISMATCH = "MODEL_IDENTITY_MISMATCH"
+# Not in the original five: the readiness chain checks the live context
+# against the alias, and an endpoint advertising less than its alias
+# promises is neither a wrong model nor a runtime that failed to come up.
+CONTEXT_CAPABILITY_MISMATCH = "CONTEXT_CAPABILITY_MISMATCH"
+RESOURCE_CONFLICT = "RESOURCE_CONFLICT"
+
+# Startup log lines that look alarming and are not. Qwen3.8-Flash-Next
+# builds its MoE expert banks at load, and on this machine FreeToken reports
+# taking the serial path when free RAM is short. Both lines appeared on the
+# qualified, working run, so they are surfaced as slow initialisation and
+# never as a failure — the process exiting or readiness failing is what
+# decides that.
+SLOW_INIT_MARKERS: tuple[str, ...] = (
+    "expert banks: low free RAM -> serial build",
+    "expert banks: slow path (serial build)",
+)
+
+# The safetensors index that an indexed (sharded) checkpoint is keyed by.
+SAFETENSORS_INDEX = "model.safetensors.index.json"
 
 # The version this adapter was qualified against on the RTX 5090 workstation
 # (FreeToken source 2757bb5). A newer runtime is allowed but reported, because
@@ -96,7 +126,9 @@ _BOOL_FLAGS: tuple[tuple[str, str], ...] = (
 
 
 class FreeTokenAdapterError(Exception):
-    pass
+    def __init__(self, message: str, code: str | None = None):
+        super().__init__(message)
+        self.code = code
 
 
 class FreeTokenAdapter:
@@ -109,6 +141,14 @@ class FreeTokenAdapter:
         self.pid_file = os.path.join(
             self.state_dir, f"model-allocator-{self.alias}-{self.port}.pid"
         )
+        # Written beside the pid file on every start, compared on reuse.
+        self.fingerprint_file = os.path.join(
+            self.state_dir,
+            f"model-allocator-{self.alias}-{self.port}.fingerprint.json",
+        )
+        # The last `ft --version` answer, so diagnostics and the fingerprint
+        # can name the runtime version without running the binary again.
+        self._version_seen: str | None = None
 
     # ---------------------------------------------------------------- config
 
@@ -146,6 +186,29 @@ class FreeTokenAdapter:
                 raise FreeTokenAdapterError(
                     f"FreeToken executable not found or not executable: {candidate}"
                 )
+        # A profile that names the variable its executable expands from has
+        # pinned a specific install. The loader turns an unset ${VAR} into
+        # an empty string, which is how we get here with `executable` blank;
+        # the variable name is what makes the error actionable, and the
+        # absence of a PATH fallback is deliberate — the Flash-Next
+        # qualification lives in its own venv, and whatever other `ft` is on
+        # PATH is a different, unqualified runtime.
+        env_name = self.resolved.get("executable_env", "")
+        if env_name:
+            candidate = os.environ.get(str(env_name), "")
+            if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+                return candidate
+            if candidate:
+                raise FreeTokenAdapterError(
+                    f"FreeToken executable not found or not executable: "
+                    f"{candidate} (from ${env_name})"
+                )
+            raise FreeTokenAdapterError(
+                f"FreeToken executable unresolved: ${env_name} is not set. "
+                f"The runtime profile expands `executable` from it — export "
+                f"it to the qualified venv's `ft`. No PATH fallback: a "
+                f"different ft is an unqualified runtime"
+            )
         found = shutil.which("ft")
         if found:
             return found
@@ -189,6 +252,7 @@ class FreeTokenAdapter:
             }
 
         detected = match.group(1)
+        self._version_seen = detected
         expected = self.resolved.get("qualified_runtime_version",
                                      QUALIFIED_RUNTIME_VERSION)
         return {
@@ -340,13 +404,41 @@ class FreeTokenAdapter:
                 "doc": doc}
 
     def models(self, timeout: float = 5.0) -> dict:
-        """Models the endpoint actually exposes, per the OpenAI-compatible route."""
+        """Models the endpoint actually exposes, per the OpenAI-compatible route.
+
+        `context` maps each model id to the context length the endpoint
+        advertises for it (FreeToken reports `max_model_len` and
+        `context_length`, both 262144 on the qualified Flash-Next profile),
+        or None when the entry carries neither. This is the route to verify
+        capabilities on: it is generic, it is what clients read, and unlike
+        /v1/stats it describes configuration rather than telemetry.
+        """
         doc, error = self._get_json("/v1/models", timeout=timeout)
         if doc is None:
-            return {"ok": False, "error": error, "models": []}
+            return {"ok": False, "error": error, "models": [], "context": {}}
         entries = doc.get("data") or []
         names = [str(entry.get("id")) for entry in entries if entry.get("id")]
-        return {"ok": True, "error": None, "models": names, "doc": doc}
+        context: dict[str, int | None] = {}
+        for entry in entries:
+            if not entry.get("id"):
+                continue
+            context[str(entry["id"])] = self._advertised_context(entry)
+        return {"ok": True, "error": None, "models": names, "context": context,
+                "doc": doc}
+
+    @staticmethod
+    def _advertised_context(entry: dict) -> int | None:
+        """Read a model entry's context length under the names servers use."""
+        for source in (entry, entry.get("meta") or {}):
+            for key in ("max_model_len", "context_length", "n_ctx"):
+                value = source.get(key) if isinstance(source, dict) else None
+                if value is None:
+                    continue
+                try:
+                    return int(value)
+                except (TypeError, ValueError):
+                    continue
+        return None
 
     def stats(self, timeout: float = 5.0) -> dict:
         """Runtime telemetry. Optional by contract.
@@ -560,10 +652,35 @@ class FreeTokenAdapter:
                     "owned": False, "model": None, "reusable": False,
                     "error": "port answers, but not with a FreeToken health document"}
 
+        doc = health["doc"] or {}
+        served = doc.get("model")
+        if health["state"] == "ready" and "model" not in doc:
+            # `{"status": "ok"}` is what llama-server answers too, and the
+            # Flash-Next profile shares port 8090 with a llama.cpp instance.
+            # A serving FreeToken always names its model; a health document
+            # that does not is some other server, and not ours to touch.
+            return {"occupied": True, "kind": "incompatible_service",
+                    "owned": False, "model": None, "reusable": False,
+                    "error": "port answers /health without naming a model — "
+                             "not a FreeToken runtime"}
+
         owned = self._recorded_pid() is not None and bool(self._server_pids())
-        served = (health["doc"] or {}).get("model")
         expected = self.expected_model_name()
         matches = served is not None and str(served) == expected
+        reusable = bool(matches and health["state"] in ("ready", "loading"))
+
+        # An owned runtime is reused only when it is the runtime we would
+        # have started: same model, profile, GPU and launch arguments. A pid
+        # file alone proves we started *something* on this port, not that it
+        # was started from this alias's configuration. Older records have no
+        # fingerprint and fall back to the model-identity check above.
+        fingerprint_mismatch = False
+        recorded = self._recorded_fingerprint() if owned else None
+        if recorded is not None:
+            current = self.runtime_fingerprint().get("digest")
+            fingerprint_mismatch = recorded.get("digest") != current
+            if fingerprint_mismatch:
+                reusable = False
         return {
             "occupied": True,
             "kind": "allocator_owned_freetoken" if owned else "external_freetoken",
@@ -571,7 +688,8 @@ class FreeTokenAdapter:
             "state": health["state"],
             "model": served,
             "expected_model": expected,
-            "reusable": bool(matches and health["state"] in ("ready", "loading")),
+            "reusable": reusable,
+            "fingerprint_mismatch": fingerprint_mismatch,
         }
 
     def _recorded_pid(self) -> int | None:
@@ -580,11 +698,29 @@ class FreeTokenAdapter:
         except (FileNotFoundError, ValueError):
             return None
 
-    def _forget_pid_file(self) -> None:
+    def _recorded_fingerprint(self) -> dict | None:
         try:
-            os.unlink(self.pid_file)
+            doc = json.loads(Path(self.fingerprint_file).read_text(encoding="utf-8"))
+        except (FileNotFoundError, ValueError, OSError):
+            return None
+        return doc if isinstance(doc, dict) else None
+
+    def _record_fingerprint(self, fingerprint: dict) -> None:
+        try:
+            Path(self.fingerprint_file).write_text(
+                json.dumps(fingerprint, indent=2, sort_keys=True), encoding="utf-8")
         except OSError:
+            # Bookkeeping, not correctness: a start must not fail because the
+            # sidecar could not be written. Reuse then falls back to the
+            # model-identity check, as it does for records that predate it.
             pass
+
+    def _forget_pid_file(self) -> None:
+        for path in (self.pid_file, self.fingerprint_file):
+            try:
+                os.unlink(path)
+            except OSError:
+                pass
 
     @staticmethod
     def _cgroup_unit_of(pid: int) -> str | None:
@@ -648,33 +784,60 @@ class FreeTokenAdapter:
                 pid = pids[0] if pids else self._recorded_pid()
                 return {
                     "started": True, "reused": True, "error": None,
-                    "pid": pid,
+                    "code": None, "pid": pid,
                     "port": self.port, "state": occupant.get("state"),
                     "oomd_shield": self._shield_from_oomd(pid),
                 }
+            detail = ""
+            if occupant.get("fingerprint_mismatch"):
+                detail = (" started by this allocator from a different "
+                          "configuration (runtime fingerprint differs)")
+            elif occupant.get("model"):
+                detail = (f" serving '{occupant['model']}' (expected "
+                          f"'{occupant['expected_model']}')")
             return {
                 "started": False, "reused": False,
+                "code": RESOURCE_CONFLICT,
                 "error": (f"port {self.port} is already held by "
-                          f"{occupant['kind']}"
-                          + (f" serving '{occupant['model']}' (expected "
-                             f"'{occupant['expected_model']}')"
-                             if occupant.get("model") else "")),
+                          f"{occupant['kind']}{detail}"),
                 "port": self.port, "occupant": occupant,
+                "diagnostics": self.diagnostics(
+                    runtime_state=occupant.get("state") or occupant.get("kind")),
             }
 
         preflight = self.version()
         if not preflight["ok"]:
-            return {"started": False, "error": preflight["error"], "port": self.port}
+            return {"started": False, "code": RUNTIME_START_FAILED,
+                    "error": preflight["error"], "port": self.port,
+                    "diagnostics": self.diagnostics(runtime_state="not_started")}
 
         gpu = self.check_gpu_available()
         if not gpu["ok"]:
             return {"started": False, "state": "gpu_unavailable",
-                    "error": gpu["error"], "port": self.port, "gpu": gpu}
+                    "code": RESOURCE_CONFLICT,
+                    "error": gpu["error"], "port": self.port, "gpu": gpu,
+                    "diagnostics": self.diagnostics(runtime_state="not_started")}
+
+        # Before spending minutes on a load: are the weights actually all
+        # there? FreeToken opens shards lazily, so a missing one surfaces as
+        # a process crash deep into initialisation — or, worse, as a
+        # download the allocator never asked for. This reads; it never
+        # repairs, deletes or fetches.
+        checkpoint = self.checkpoint_preflight()
+        if not checkpoint["ok"]:
+            return {"started": False, "state": "cache_incomplete",
+                    "code": MODEL_CACHE_INCOMPLETE,
+                    "error": checkpoint["error"], "port": self.port,
+                    "checkpoint": checkpoint,
+                    "diagnostics": self.diagnostics(
+                        runtime_state="not_started", checkpoint=checkpoint)}
 
         try:
             argv = self.build_argv()
         except FreeTokenAdapterError as exc:
-            return {"started": False, "error": str(exc), "port": self.port}
+            return {"started": False, "code": RUNTIME_START_FAILED,
+                    "error": str(exc), "port": self.port,
+                    "diagnostics": self.diagnostics(runtime_state="not_started")}
 
         os.makedirs(self.state_dir, exist_ok=True)
         log_path = os.path.join(
@@ -693,14 +856,19 @@ class FreeTokenAdapter:
                 env=self.child_env(),
             )
         except Exception as exc:
-            return {"started": False,
+            return {"started": False, "code": RUNTIME_START_FAILED,
                     "error": f"Failed to start FreeToken server: {exc}",
-                    "port": self.port}
+                    "port": self.port,
+                    "diagnostics": self.diagnostics(runtime_state="not_started")}
         finally:
             if log_handle is not subprocess.DEVNULL:
                 log_handle.close()
 
         Path(self.pid_file).write_text(str(process.pid), encoding="utf-8")
+        # Record what was started, so a later start() from a different
+        # configuration cannot mistake this process for its own.
+        fingerprint = self.runtime_fingerprint(checkpoint=checkpoint)
+        self._record_fingerprint(fingerprint)
 
         # Shield before the readiness wait, not after: the load itself is
         # the window where the engine's shmem footprint grows fastest.
@@ -708,45 +876,113 @@ class FreeTokenAdapter:
 
         start_ts = time.time()
         last_state = "starting"
+        initialisation: dict = {"slow_path": False, "notes": []}
         while time.time() - start_ts < timeout:
+            # Expected-but-slow log lines are reported as they appear and
+            # change nothing about the wait: the run they were observed on
+            # reached READY. Only an exit or a failed readiness check ends it.
+            self._note_slow_initialisation(log_path, initialisation)
             if process.poll() is not None:
                 self._forget_pid_file()
+                tail = self._log_tail(log_path)
+                code = self._classify_exit(tail)
                 return {
-                    "started": False, "state": "failed",
+                    "started": False, "state": "failed", "code": code,
                     "error": (f"FreeToken exited before becoming ready "
                               f"(rc={process.returncode}); see {log_path}"),
-                    "port": self.port, "log": log_path,
+                    "port": self.port, "log": log_path, "log_tail": tail,
+                    "initialisation": initialisation,
+                    "diagnostics": self.diagnostics(
+                        runtime_state="exited", checkpoint=checkpoint),
                 }
             health = self.health()
             if health["reachable"]:
                 last_state = health["state"]
                 if last_state == "ready":
-                    verification = self.verify_model()
+                    readiness = self.readiness(alive=process.poll() is None)
                     return {
-                        "started": verification["ok"], "reused": False,
-                        "state": "ready" if verification["ok"] else "model_mismatch",
-                        "error": verification["error"],
+                        "started": readiness["ready"], "reused": False,
+                        "state": readiness["state"],
+                        "code": readiness["code"],
+                        "error": readiness["error"],
                         "pid": process.pid, "port": self.port,
-                        "model": verification.get("served"),
+                        "model": readiness.get("served"),
+                        "context": readiness.get("context"),
                         "log": log_path,
+                        "initialisation": initialisation,
                         "oomd_shield": oomd_shield,
+                        "fingerprint": fingerprint.get("digest"),
+                        "diagnostics": (None if readiness["ready"] else
+                                        self.diagnostics(
+                                            runtime_state=readiness["state"],
+                                            checkpoint=checkpoint)),
                     }
                 if last_state == "failed":
                     return {
                         "started": False, "state": "failed",
+                        "code": RUNTIME_START_FAILED,
                         "error": health["error"] or "FreeToken reported a fatal error",
                         "pid": process.pid, "port": self.port, "log": log_path,
+                        "initialisation": initialisation,
                         "oomd_shield": oomd_shield,
+                        "diagnostics": self.diagnostics(
+                            runtime_state="failed", checkpoint=checkpoint),
                     }
             time.sleep(1.0)
 
         return {
-            "started": False, "state": last_state,
+            "started": False, "state": last_state, "code": RUNTIME_NOT_READY,
             "error": (f"FreeToken did not become ready within {timeout}s "
                       f"(last state: {last_state}); see {log_path}"),
             "pid": process.pid, "port": self.port, "log": log_path,
+            "initialisation": initialisation,
             "oomd_shield": oomd_shield,
+            "diagnostics": self.diagnostics(
+                runtime_state=last_state, checkpoint=checkpoint),
         }
+
+    # ------------------------------------------------------ startup log
+
+    @staticmethod
+    def _log_tail(log_path: str, limit: int = 65536) -> str:
+        """The end of the server log, for diagnostics. Never raises."""
+        try:
+            with open(log_path, "rb") as handle:
+                handle.seek(0, os.SEEK_END)
+                size = handle.tell()
+                handle.seek(max(0, size - limit))
+                return handle.read().decode("utf-8", "replace")
+        except OSError:
+            return ""
+
+    def _note_slow_initialisation(self, log_path: str, report: dict) -> None:
+        """Record known slow-path markers from the log, once each."""
+        tail = self._log_tail(log_path)
+        if not tail:
+            return
+        for marker in SLOW_INIT_MARKERS:
+            if marker in tail and marker not in report["notes"]:
+                report["notes"].append(marker)
+                report["slow_path"] = True
+
+    @staticmethod
+    def _classify_exit(log_tail: str) -> str:
+        """Name the failure class of a process that exited before ready.
+
+        The checkpoint preflight should have caught a missing shard before
+        launch; this is the second line, for an artifact the runtime asked
+        for that the index did not name. Anything else is a start failure
+        with the log tail attached — never an unexplained crash.
+        """
+        text = log_tail.lower()
+        if "safetensors" in text and any(
+                marker in text for marker in
+                ("no such file", "not found", "does not exist", "missing",
+                 "incomplete")):
+            return MODEL_CACHE_INCOMPLETE
+        return RUNTIME_START_FAILED
+
+    # -------------------------------------------------------- readiness
 
     def verify_model(self) -> dict:
         """Confirm the endpoint exposes the model that was asked for."""
@@ -754,16 +990,108 @@ class FreeTokenAdapter:
         discovered = self.models()
         if not discovered["ok"]:
             return {"ok": False, "expected": expected, "served": None,
+                    "code": RUNTIME_NOT_READY,
                     "error": f"could not read /v1/models: {discovered['error']}"}
         if expected in discovered["models"]:
             return {"ok": True, "expected": expected, "served": expected,
-                    "error": None}
+                    "code": None, "error": None,
+                    "context": discovered["context"].get(expected)}
         return {
             "ok": False, "expected": expected,
+            "code": MODEL_IDENTITY_MISMATCH,
             "served": discovered["models"][0] if discovered["models"] else None,
             "error": (f"endpoint exposes {discovered['models']!r}, "
                       f"expected '{expected}'"),
         }
+
+    def verify_context(self, discovered: dict | None = None) -> dict:
+        """Check the live context against what the alias promises.
+
+        The alias's `context` is what endpoint() hands to consumers, who
+        budget by it. An endpoint advertising less than that is not READY:
+        the promise would be broken on the first long prompt. More is fine —
+        the alias states a floor it was qualified at, not a ceiling. An
+        endpoint that does not advertise a figure at all cannot be checked
+        and is reported as unverified rather than refused, because the
+        27B and 35B aliases were qualified before /v1/models carried one.
+        """
+        expected = self.resolved.get("context")
+        served = self.expected_model_name()
+        if discovered is None:
+            discovered = self.models()
+        if not discovered.get("ok"):
+            return {"ok": False, "checked": False, "code": RUNTIME_NOT_READY,
+                    "expected": expected, "live": None,
+                    "error": f"could not read /v1/models: {discovered.get('error')}"}
+        live = (discovered.get("context") or {}).get(served)
+        if expected is None or live is None:
+            return {"ok": True, "checked": False, "code": None,
+                    "expected": expected, "live": live, "error": None}
+        if int(live) < int(expected):
+            return {"ok": False, "checked": True,
+                    "code": CONTEXT_CAPABILITY_MISMATCH,
+                    "expected": expected, "live": live,
+                    "error": (f"endpoint advertises context {live} for "
+                              f"'{served}', alias promises {expected}")}
+        return {"ok": True, "checked": True, "code": None,
+                "expected": expected, "live": live, "error": None}
+
+    def readiness(self, alive: bool | None = None) -> dict:
+        """The whole chain, in order, stopping at the first link that fails.
+
+        process alive -> /health ok -> /v1/models answers -> a model is
+        served -> it is the expected one -> its context is acceptable ->
+        READY. A process that exists is the *first* of six conditions, not
+        the conclusion; on a runtime this size, a client handed an endpoint
+        that fails any later link pays for a full load to find out.
+
+        `alive` is a fact the caller already holds (start() from poll(),
+        status() from its pid check); None means "no process is tracked",
+        which is the case for an external runtime being inspected.
+        """
+        base = {"ready": False, "served": None, "context": None}
+        if alive is False:
+            return {**base, "stage": "process", "state": "stopped",
+                    "code": RUNTIME_NOT_READY,
+                    "error": "the tracked process is not alive"}
+
+        health = self.health()
+        if not health["reachable"]:
+            return {**base, "stage": "health", "state": "starting",
+                    "code": RUNTIME_NOT_READY,
+                    "error": f"/health unreachable: {health['error']}"}
+        if health["state"] != "ready":
+            return {**base, "stage": "health", "state": health["state"],
+                    "code": (RUNTIME_START_FAILED if health["state"] == "failed"
+                             else RUNTIME_NOT_READY),
+                    "error": health["error"] or f"/health reports {health['state']}"}
+
+        discovered = self.models()
+        if not discovered["ok"]:
+            return {**base, "stage": "models", "state": "unhealthy",
+                    "code": RUNTIME_NOT_READY,
+                    "error": f"could not read /v1/models: {discovered['error']}"}
+        if not discovered["models"]:
+            return {**base, "stage": "served_model", "state": "unhealthy",
+                    "code": RUNTIME_NOT_READY,
+                    "error": "/v1/models lists no model"}
+
+        identity = self.verify_model()
+        if not identity["ok"]:
+            return {**base, "stage": "identity", "state": "model_mismatch",
+                    "served": identity.get("served"),
+                    "code": identity["code"], "error": identity["error"]}
+
+        context = self.verify_context(discovered)
+        if not context["ok"]:
+            return {**base, "stage": "context", "state": "context_mismatch",
+                    "served": identity["served"], "context": context["live"],
+                    "code": context["code"], "error": context["error"]}
+
+        return {"ready": True, "stage": "ready", "state": "ready", "code": None,
+                "error": None, "served": identity["served"],
+                "context": context["live"] if context["checked"]
+                else self.resolved.get("context")}
 
     def status(self, use_pid: int | None = None) -> dict:
         """Report state, trusting the runtime's health over the bookkeeping.
@@ -786,8 +1114,23 @@ class FreeTokenAdapter:
                 alive = False
 
         health = self.health()
+        code = None
+        error = None
         if health["reachable"]:
             state = health["state"]
+            if state == "ready":
+                # /health saying ok is a necessary condition, not READY:
+                # the served model and its context still have to be the
+                # ones this alias promises. A mismatch is still `running`
+                # — a caller that auto-starts on "not running" would put a
+                # second runtime on the card — but it is not `ready`.
+                # Liveness is deliberately not passed: an answering /health
+                # outranks a pid record, which can be stale or belong to a
+                # runtime we did not start. start() holds the real fact.
+                readiness = self.readiness()
+                state = readiness["state"]
+                code = readiness["code"]
+                error = readiness["error"]
         elif self._port_open():
             state = "unhealthy"
         elif alive:
@@ -796,8 +1139,11 @@ class FreeTokenAdapter:
             state = "stopped"
 
         doc = health["doc"] or {}
+        if error is None and state in ("failed", "unhealthy"):
+            error = health["error"]
         return {
-            "running": state in ("ready", "loading"),
+            "running": state in ("ready", "loading", "model_mismatch",
+                                 "context_mismatch"),
             "ready": state == "ready",
             "state": state,
             "alive": alive,
@@ -805,8 +1151,103 @@ class FreeTokenAdapter:
             "pid": pid,
             "port": self.port,
             "model": doc.get("model"),
-            "error": health["error"] if state in ("failed", "unhealthy") else None,
+            "code": code,
+            "error": error,
         }
+
+    def diagnostics(self, runtime_state: str | None = None,
+                    checkpoint: dict | None = None) -> dict:
+        """What a failure report has to carry to be acted on.
+
+        Every field is read from configuration, bookkeeping or the
+        filesystem; nothing here runs the binary or touches the network, so
+        it can be attached to any result without changing the outcome.
+        """
+        try:
+            executable = self.resolve_executable()
+        except FreeTokenAdapterError as exc:
+            executable = None
+            executable_error = str(exc)
+        else:
+            executable_error = None
+        if checkpoint is None:
+            checkpoint = self.checkpoint_preflight()
+        try:
+            gpu = self.gpu_index()
+        except FreeTokenAdapterError:
+            gpu = self.resolved.get("gpu")
+        return {
+            "alias": self.alias,
+            "provider": "freetoken",
+            "model": self.resolved.get("model_path"),
+            "served_model_expected": self._safe_expected_model_name(),
+            "revision": checkpoint.get("revision"),
+            "snapshot": checkpoint.get("snapshot"),
+            "missing_artifact": (checkpoint.get("missing") or
+                                 checkpoint.get("incomplete") or
+                                 checkpoint.get("broken_symlinks") or None),
+            "executable": executable,
+            "executable_error": executable_error,
+            "version": self._version_seen,
+            "host": self.host,
+            "port": self.port,
+            "gpu": gpu,
+            "runtime_profile": self.resolved.get("runtime_profile"),
+            "runtime_state": runtime_state,
+        }
+
+    def _safe_expected_model_name(self) -> str | None:
+        try:
+            return self.expected_model_name()
+        except FreeTokenAdapterError:
+            return None
+
+    # ------------------------------------------------------ fingerprint
+
+    def runtime_fingerprint(self, version: str | None = None,
+                            checkpoint: dict | None = None) -> dict:
+        """Deterministic identity of the runtime this configuration starts.
+
+        Covers what makes two runtimes interchangeable: provider, model
+        reference and revision, served name, GPU, profile, the launch
+        arguments that shape the process, and the executable (with its
+        version when one has been observed). Request-level settings —
+        reasoning effort above all — are deliberately absent: they vary per
+        call and change nothing about which process is running.
+
+        `version` is taken from the argument, else from the last version()
+        preflight; it is never probed here, so the fingerprint is pure.
+        """
+        if checkpoint is None:
+            checkpoint = self.checkpoint_preflight()
+        try:
+            executable = self.resolve_executable()
+        except FreeTokenAdapterError:
+            executable = None
+        try:
+            launch_args = self.build_argv()[2:]  # after <executable> serve
+        except FreeTokenAdapterError:
+            launch_args = None
+        try:
+            gpu = self.gpu_index()
+        except FreeTokenAdapterError:
+            gpu = None
+        material = {
+            "provider": "freetoken",
+            "model": self.resolved.get("model_path"),
+            "revision": checkpoint.get("revision"),
+            "served_model": self._safe_expected_model_name(),
+            "gpu": gpu,
+            "runtime_profile": self.resolved.get("runtime_profile"),
+            "host": self.host,
+            "port": self.port,
+            "launch_args": launch_args,
+            "executable": executable,
+            "version": version or self._version_seen,
+        }
+        encoded = json.dumps(material, sort_keys=True, separators=(",", ":"))
+        digest = hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+        return {**material, "digest": digest}
 
     def endpoint(self) -> dict:
         """The normalized descriptor handed to the harness allocator.
@@ -819,13 +1260,21 @@ class FreeTokenAdapter:
         served = self.expected_model_name()
         context = None
         kv_capacity = None
+        # Context comes from /v1/models first: it is configuration as the
+        # endpoint states it, and the value the readiness chain verified.
+        # /v1/stats is telemetry — its page_size has been seen to disagree
+        # with the resolved runtime config — and is only the last resort.
+        discovered = self.models()
+        if discovered["ok"]:
+            context = discovered["context"].get(served)
         telemetry = self.stats()
         if telemetry["ok"]:
             served = telemetry.get("model") or served
-            context = telemetry.get("context_max")
             kv_capacity = telemetry.get("kv_capacity")
         if context is None:
             context = self.resolved.get("context")
+        if context is None and telemetry["ok"]:
+            context = telemetry.get("context_max")
         if kv_capacity is None:
             # /v1/stats reports kv as null until the runtime has served its
             # first request, and the budget is most needed BEFORE that — a
@@ -870,12 +1319,211 @@ class FreeTokenAdapter:
             return os.path.join(home, "hub")
         return os.path.expanduser("~/.cache/huggingface/hub")
 
+    def _hub_cache_candidates(self) -> list[str]:
+        """Cache roots to look in, in the order the runtime resolves them.
+
+        Two layouts have been seen on the qualified machine for the same
+        repo: `~/.cache/huggingface/hub/models--…` and, beside it,
+        `~/.cache/huggingface/models--…`. FreeToken resolved the `hub/` one,
+        so it comes first; the sibling is checked only when hub/ has no
+        entry, and never picked over an existing hub/ entry — that would be
+        guessing a snapshot path the runtime will not use.
+        """
+        hub = self.hub_cache_dir()
+        candidates = [hub]
+        head, tail = os.path.split(hub.rstrip(os.sep))
+        if tail == "hub" and head:
+            candidates.append(head)
+        return candidates
+
+    def resolve_snapshot(self) -> dict:
+        """Locate the snapshot the runtime would load, without guessing.
+
+        For a repo id: the cache entry's `refs/main` names the revision and
+        the snapshot is `snapshots/<revision>`. With no refs, a single
+        snapshot directory is unambiguous; several without a ref are not,
+        and are reported as such rather than picked from.
+        """
+        report = {"model": None, "kind": None, "cache_dir": None,
+                  "entry": None, "snapshot": None, "revision": None,
+                  "error": None}
+        try:
+            model = self._model_reference()
+        except FreeTokenAdapterError as exc:
+            report["error"] = str(exc)
+            return report
+        report["model"] = model
+        if os.path.isdir(model):
+            report.update(kind="local_directory", snapshot=model)
+            return report
+        if "/" not in model:
+            report.update(kind="unknown", error="not a repo id or a directory")
+            return report
+        report["kind"] = "hub_repo"
+        entry_name = "models--" + model.replace("/", "--")
+        for cache in self._hub_cache_candidates():
+            entry = os.path.join(cache, entry_name)
+            if not os.path.isdir(entry):
+                continue
+            report.update(cache_dir=cache, entry=entry)
+            ref = os.path.join(entry, "refs", "main")
+            revision = None
+            try:
+                revision = Path(ref).read_text(encoding="utf-8").strip() or None
+            except OSError:
+                revision = None
+            snapshots_dir = os.path.join(entry, "snapshots")
+            if revision:
+                snapshot = os.path.join(snapshots_dir, revision)
+                if os.path.isdir(snapshot):
+                    report.update(snapshot=snapshot, revision=revision)
+                else:
+                    report["error"] = (f"refs/main names {revision} but "
+                                       f"snapshots/{revision} is missing")
+                return report
+            try:
+                names = sorted(n for n in os.listdir(snapshots_dir)
+                               if os.path.isdir(os.path.join(snapshots_dir, n)))
+            except OSError:
+                names = []
+            if len(names) == 1:
+                report.update(snapshot=os.path.join(snapshots_dir, names[0]),
+                              revision=names[0])
+            elif not names:
+                report["error"] = "cache entry exists but holds no snapshot"
+            else:
+                report["error"] = (f"no refs/main and {len(names)} snapshots — "
+                                   f"cannot tell which one the runtime loads")
+            return report
+        report["error"] = "not in the hub cache"
+        return report
+
+    def checkpoint_preflight(self) -> dict:
+        """Prove the weights are complete, or say exactly what is not.
+
+        For an indexed safetensors checkpoint "the directory exists" and "no
+        .incomplete files" prove nothing: the Flash-Next repo was found on
+        this machine in a second cache layout holding the index and none of
+        its 206 shards. So the check is the index's own: it exists, it
+        parses, every unique file in weight_map is present, every symlink
+        among them resolves, and none of them is a partial download.
+
+        Read-only by design. An incomplete cache is reported with the
+        missing artifacts named; it is never repaired, pruned or
+        re-downloaded from here — that is a decision about 100 GB of
+        somebody's disk and network, not a startup step.
+        """
+        location = self.resolve_snapshot()
+        report = {
+            "ok": True, "checked": False, "code": None, "error": None,
+            "model": location["model"], "kind": location["kind"],
+            "snapshot": location["snapshot"], "revision": location["revision"],
+            "cache_dir": location["cache_dir"],
+            "index": None, "shards": 0,
+            "missing": [], "incomplete": [], "broken_symlinks": [],
+        }
+        if location["kind"] == "unknown" or location["model"] is None:
+            report["error"] = location["error"]
+            return report
+        if location["kind"] == "hub_repo" and location["entry"] is None:
+            # Not cached at all. There is nothing to verify, and whether
+            # the runtime fetches is the runtime's decision, not ours.
+            report["error"] = location["error"]
+            return report
+        if location["snapshot"] is None:
+            report.update(ok=False, checked=True, code=MODEL_CACHE_INCOMPLETE,
+                          error=f"checkpoint cache unusable: {location['error']}")
+            return report
+
+        snapshot = location["snapshot"]
+        index_path = os.path.join(snapshot, SAFETENSORS_INDEX)
+        report["index"] = index_path
+        report["checked"] = True
+        if not os.path.lexists(index_path):
+            single = os.path.join(snapshot, "model.safetensors")
+            if os.path.lexists(single):
+                # Not an indexed checkpoint; verify the one file the same way.
+                report["index"] = None
+                self._check_artifact(snapshot, "model.safetensors", report)
+                report["shards"] = 1
+                return self._finish_preflight(report)
+            report.update(ok=False, code=MODEL_CACHE_INCOMPLETE,
+                          missing=[SAFETENSORS_INDEX],
+                          error=(f"{SAFETENSORS_INDEX} missing from {snapshot} "
+                                 f"— indexed checkpoint cannot be verified"))
+            return report
+        if os.path.islink(index_path) and not os.path.exists(index_path):
+            report.update(ok=False, code=MODEL_CACHE_INCOMPLETE,
+                          broken_symlinks=[SAFETENSORS_INDEX],
+                          error=f"{SAFETENSORS_INDEX} is a symlink that does not resolve")
+            return report
+        try:
+            with open(index_path, encoding="utf-8") as handle:
+                index = json.load(handle)
+            weight_map = index["weight_map"]
+            if not isinstance(weight_map, dict):
+                raise ValueError("weight_map is not a mapping")
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            report.update(ok=False, code=MODEL_CACHE_INCOMPLETE,
+                          error=f"{SAFETENSORS_INDEX} is malformed: {exc}")
+            return report
+
+        files = sorted({str(name) for name in weight_map.values()})
+        report["shards"] = len(files)
+        for name in files:
+            self._check_artifact(snapshot, name, report)
+        return self._finish_preflight(report)
+
+    @staticmethod
+    def _check_artifact(snapshot: str, name: str, report: dict) -> None:
+        """Classify one referenced file: present, missing, broken or partial."""
+        path = os.path.join(snapshot, name)
+        if name.endswith(".incomplete"):
+            report["incomplete"].append(name)
+            return
+        if not os.path.lexists(path):
+            report["missing"].append(name)
+            return
+        if os.path.islink(path) and not os.path.exists(path):
+            # A hub symlink whose blob is still downloading points at a
+            # name that only exists with an .incomplete suffix.
+            try:
+                target = os.path.join(os.path.dirname(path), os.readlink(path))
+            except OSError:
+                target = ""
+            if target and os.path.exists(target + ".incomplete"):
+                report["incomplete"].append(name)
+            else:
+                report["broken_symlinks"].append(name)
+            return
+        if os.path.realpath(path).endswith(".incomplete"):
+            report["incomplete"].append(name)
+
+    @staticmethod
+    def _finish_preflight(report: dict) -> dict:
+        problems = []
+        if report["missing"]:
+            problems.append(f"{len(report['missing'])} missing "
+                            f"(first: {report['missing'][0]})")
+        if report["broken_symlinks"]:
+            problems.append(f"{len(report['broken_symlinks'])} unresolvable "
+                            f"symlink(s) (first: {report['broken_symlinks'][0]})")
+        if report["incomplete"]:
+            problems.append(f"{len(report['incomplete'])} partial download(s) "
+                            f"(first: {report['incomplete'][0]})")
+        if problems:
+            report.update(ok=False, code=MODEL_CACHE_INCOMPLETE,
+                          error=(f"checkpoint at {report['snapshot']} is "
+                                 f"incomplete: " + "; ".join(problems)))
+        return report
+
     def model_is_cached(self) -> bool | None:
         """Whether this profile's weights are already on disk.
 
         Returns None when the question does not apply or cannot be answered
         — a local checkpoint path that exists needs no hub cache, and an
-        unreadable cache directory is not evidence of absence.
+        unreadable cache directory is not evidence of absence. This is a
+        presence question; checkpoint_preflight() is the integrity one.
         """
         try:
             model = self._model_reference()
@@ -885,10 +1533,10 @@ class FreeTokenAdapter:
             return True
         if "/" not in model:
             return None
-        cache = self.hub_cache_dir()
-        entry = os.path.join(cache, "models--" + model.replace("/", "--"))
+        entry_name = "models--" + model.replace("/", "--")
         try:
-            return os.path.isdir(entry)
+            return any(os.path.isdir(os.path.join(cache, entry_name))
+                       for cache in self._hub_cache_candidates())
         except OSError:
             return None
 
@@ -902,6 +1550,7 @@ class FreeTokenAdapter:
         now derived from the hub cache, and None when the question cannot be
         answered rather than a guess in either direction.
         """
+        checkpoint = self.checkpoint_preflight()
         return {
             "provider": "freetoken",
             "capabilities": {
@@ -910,6 +1559,14 @@ class FreeTokenAdapter:
                 "gpu_selection": self.gpu_index() is not None,
                 "huggingface_models": True,
                 "offline_cached_models": self.model_is_cached(),
+                # Presence is not completeness: the cache can hold an index
+                # and none of its shards. None when there is nothing to
+                # verify (not cached, or not a checkpoint we can locate).
+                "checkpoint_complete": (checkpoint["ok"] if checkpoint["checked"]
+                                        else None),
+                # The alias's promise; the readiness chain verifies the live
+                # figure from /v1/models against it before READY.
+                "context_length": self.resolved.get("context"),
             },
         }
 

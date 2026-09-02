@@ -793,6 +793,103 @@ its output budget on reasoning content — and it belongs to whoever builds the
 request. That is the harness allocator or the DPMtF role profile, not this
 adapter.
 
+### Qwen3.8-Flash-Next: the minimal launch
+
+A third alias, `freetoken-qwen38-flash-next`, serves
+`RadixArk/Qwen3.8-Flash-Next-NVFP4` (MoE, NVFP4, 262144 context) as
+`Qwen3.8-Flash-Next-NVFP4`. It was qualified on the RTX 5090 against FreeToken
+0.1.2 with nothing but model, host and port:
+
+```bash
+ft serve --model RadixArk/Qwen3.8-Flash-Next-NVFP4 --host 127.0.0.1 --port 8090
+```
+
+FreeToken chose qsa_sparse attention, offloaded MoE, a hybrid_radix cache and
+the triton NVFP4 expert path by itself, and that is what was measured working.
+So the alias pins **no** backend flag — in particular it does not inherit
+`nvfp4_backend: auto` from the 27B alias, which was qualified for that dense
+checkpoint and not this one. The auto-selected backends are recorded under
+`qualification.auto_selected` as diagnostic facts, never emitted as flags, and
+`test_launch_is_minimal` holds the command to exactly those six arguments.
+
+The qualification ran from its own venv, distinct from the one
+`${FREETOKEN_BIN}` names, so the alias has its own profile:
+
+```yaml
+freetoken_qwen38_cuda0:
+  backend: freetoken
+  executable: ${FREETOKEN_QWEN38_BIN}
+  executable_env: FREETOKEN_QWEN38_BIN
+  default_port: 8090
+  default_host: 127.0.0.1
+  gpu: cuda0
+  qualified_runtime_version: "0.1.2"
+```
+
+`executable_env` names the variable so an unset one is reported by name rather
+than as "no executable configured" — and it pins the install: a profile that
+names its variable gets no PATH fallback, because a different `ft` is a
+different, unqualified runtime. Nothing else on the machine notices the
+variable; FreeToken stays optional.
+
+Port 8090 is configuration, not code, and it is also the port of the
+`laguna-shared-118b` llama-server instance. Both are whole-card workloads and
+cannot coexist anyway; the port inspection tells them apart — llama-server's
+`/health` answers `{"status": "ok"}` without naming a model, which the adapter
+classifies as an incompatible service and leaves alone.
+
+Reasoning effort is deliberately not part of the alias. The endpoint advertises
+`low`/`medium`/`xhigh` (default `xhigh`) and accepts `none` experimentally; that
+is a request-level choice for the role and is excluded from the runtime
+fingerprint.
+
+**Readiness is a chain, not a process check.** A process that exists is the
+first of six conditions: process alive → `/health` ok → `/v1/models` answers →
+a model is served → it is the expected one → its advertised context is at least
+the alias's 262144 → READY. `status()` reports a runtime that fails a later
+link as `running` (so nothing auto-starts a second one onto the card) but not
+`ready`, with the failing stage and a code. The known-good health document is
+`status=ok model=Qwen3.8-Flash-Next-NVFP4 maintenance=serving version=0.1.2`;
+capability validation prefers `/v1/models` (`max_model_len` = `context_length`
+= 262144), and `/v1/stats` is telemetry only — its `page_size` has been seen to
+disagree with the resolved runtime config, and readiness never depends on
+non-zero throughput.
+
+**Checkpoint preflight.** Before launch, `checkpoint_preflight()` resolves the
+snapshot the way the hub does (`refs/main` → `snapshots/<revision>`, looking in
+`…/huggingface/hub/models--…` first and the sibling `…/huggingface/models--…`
+only when hub/ has no entry — both layouts were seen for this repo, and
+FreeToken resolved the hub/ one) and then verifies the safetensors index: it
+exists, it parses, every unique file in `weight_map` is present, every symlink
+among them resolves, and none is a partial download. "The directory exists" is
+not accepted as proof; the sibling layout on the qualified machine held the
+index and none of its 206 shards. The check is read-only — nothing is deleted,
+repaired or downloaded — and an incomplete cache refuses with
+`MODEL_CACHE_INCOMPLETE` and the missing artifacts named, in seconds, instead
+of surfacing as a process crash minutes into a load.
+
+**Expected startup lines.** `expert banks: low free RAM -> serial build` and
+`expert banks: slow path (serial build)` both appeared on the qualified, working
+run. `start()` surfaces them under `initialisation.slow_path` and keeps
+waiting; only the process exiting or the readiness chain failing ends the wait.
+
+**Ownership and fingerprint.** Every start records a `runtime_fingerprint()`
+beside the pid file: provider, model reference and cache revision, served
+name, GPU, profile, host, port, the launch arguments and the executable with
+its version when observed. An allocator-owned runtime on the port is reused
+only when its recorded fingerprint matches what this alias would start;
+records that predate the fingerprint fall back to the served-model check. The
+alias declares `min_free_vram_mib: 28500` (measured ~27.7 GiB in use at ready,
+~2.7 GiB free), so `check_gpu_available` treats it as the exclusive workload it
+is.
+
+**Failure classes.** A `start()` or `readiness()` result that is not a success
+carries a `code` — `MODEL_CACHE_INCOMPLETE`, `RUNTIME_START_FAILED`,
+`RUNTIME_NOT_READY`, `MODEL_IDENTITY_MISMATCH`, `CONTEXT_CAPABILITY_MISMATCH`
+or `RESOURCE_CONFLICT` — and a `diagnostics` block naming alias, provider,
+model, revision and snapshot when known, the missing artifact, executable and
+version, host, port, GPU and runtime state.
+
 ---
 
 ## ONYX runtime (optional, V5)

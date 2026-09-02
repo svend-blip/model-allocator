@@ -9,6 +9,9 @@ from typing import Any
 import os
 import shutil
 
+from model_allocator.adapters.freetoken import (
+    FreeTokenAdapter, FreeTokenAdapterError,
+)
 from model_allocator.adapters import llama_cpp as llama_cpp_adapter
 from model_allocator.adapters import ollama as ollama_adapter
 from model_allocator.adapters import openai_compatible as openai_adapter
@@ -299,10 +302,21 @@ class Validator:
         # configuration this machine qualified.
 
         executable = resolved.get("executable") or resolved.get("server_bin_path") or ""
+        executable_env = resolved.get("executable_env") or ""
         if executable:
             if not (os.path.isfile(executable) and os.access(executable, os.X_OK)):
                 result["errors"].append(
                     f"FreeToken executable not found or not executable: {executable}")
+        elif executable_env:
+            # The profile pins a specific install through a named variable
+            # (the Flash-Next qualification lives in its own venv). An unset
+            # variable is a configuration error to name, not a cue to go
+            # looking for some other `ft` on PATH.
+            result["errors"].append(
+                f"FreeToken executable unresolved: the runtime profile "
+                f"expands `executable` from ${executable_env}, which is not "
+                f"set. Export it to the qualified venv's `ft` — no PATH "
+                f"fallback, a different ft is an unqualified runtime")
         elif not shutil.which("ft"):
             result["warnings"].append(
                 "FreeToken executable unresolved: no `executable` on the "
@@ -316,6 +330,19 @@ class Validator:
                 "from leftover VRAM, which on a full card lands far below the "
                 "model's context — measured at 14303 tokens against an "
                 "advertised 262144")
+
+        # Checkpoint integrity, when the cache can answer. Filesystem reads
+        # only — an index and a stat per shard — so it is cheap enough for
+        # `list`. A warning rather than an error: validation says whether the
+        # alias is well-formed, and start() is where an incomplete cache
+        # refuses, with the full diagnostics.
+        try:
+            preflight = FreeTokenAdapter(resolved).checkpoint_preflight()
+        except FreeTokenAdapterError as exc:
+            preflight = {"checked": False, "ok": True, "error": str(exc)}
+        if preflight.get("checked") and not preflight.get("ok"):
+            result["warnings"].append(
+                f"checkpoint preflight: {preflight.get('error')}")
 
         result["client_support"][client] = "OK"
 

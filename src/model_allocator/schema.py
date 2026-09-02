@@ -187,6 +187,15 @@ PROFILE_FIELDS: dict[str, object] = {
     # qualified install is a project-local venv, so a service environment
     # never finds `ft` by name.
     "executable": str,
+    # Name of the environment variable `executable` is expanded from. The
+    # loader replaces an unset ${VAR} with an empty string, which the adapter
+    # could only report as "no executable configured" — misleading when the
+    # profile deliberately pins a specific install (the Qwen3.8-Flash-Next
+    # qualification lives in its own venv, distinct from ${FREETOKEN_BIN}).
+    # Naming the variable lets the error name it, and a profile that names
+    # one gets no PATH fallback: a different `ft` is a different, unqualified
+    # runtime. Same pattern as server_bin_env for llama.cpp.
+    "executable_env": str,
     "qualified_runtime_version": str,
     "server_bin_env": str,
     "model_root_env": str,

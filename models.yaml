@@ -666,6 +666,63 @@ models:
       # Declaring the client is not a recommendation to use it here.
       qwen: true
 
+  # Qwen3.8-Flash-Next, MoE NVFP4, qualified on the RTX 5090 against FreeToken
+  # 0.1.2 with the MINIMAL launch:
+  #
+  #   ft serve --model RadixArk/Qwen3.8-Flash-Next-NVFP4 --host H --port P
+  #
+  # Nothing else is pinned, and nothing else may be. FreeToken auto-selected
+  # qsa_sparse attention, offloaded MoE, a hybrid_radix cache and the triton
+  # NVFP4 expert path, and that is the configuration that was measured
+  # working. In particular `nvfp4_backend: auto` is NOT copied from the 27B
+  # alias: it was qualified for that dense checkpoint, not this one, and a
+  # backend flag on an unqualified path is a guess dressed as configuration.
+  # The auto-selected backends are recorded under `qualification` as
+  # diagnostic facts, where a later comparison can find them, not as flags.
+  #
+  # Reasoning effort is deliberately absent. The endpoint advertises
+  # low/medium/xhigh (default xhigh) and accepts `none` experimentally; that
+  # is a request-level choice for the role, not runtime identity.
+  #
+  # No KV budget (num_tokens) either: the qualified launch let FreeToken size
+  # it, so the validator's "no KV budget declared" warning is expected here.
+  # Check usable_context_tokens on the endpoint before hosting an agent.
+  freetoken-qwen38-flash-next:
+    runtime_profile: freetoken_qwen38_cuda0
+    real_model: Qwen3.8-Flash-Next-NVFP4
+    display_name: Qwen3.8-Flash-Next NVFP4 (FreeToken MoE, 256k)
+    model_path: RadixArk/Qwen3.8-Flash-Next-NVFP4
+    # Configuration, not code: the qualification ran on 8090.
+    port: 8090
+    # /v1/models reports max_model_len = context_length = 262144; the adapter
+    # verifies the live figure against this before declaring READY.
+    context: 262144
+    lifecycle_policy: stop_after_step
+    # Measured at ready: ~27.7 GiB (28365 MiB) in use, ~2.7 GiB free. An
+    # exclusive workload — refuse up front rather than OOM after minutes.
+    min_free_vram_mib: 28500
+    qualification:
+      status: validated
+      runtime_version: "0.1.2"
+      gpu_class: RTX_5090
+      cuda_major: 13
+      launch: minimal
+      # Observed at qualification. Diagnostic only — never emitted as flags.
+      auto_selected:
+        attention_backend: qsa_sparse
+        moe_backend: offload
+        cache_type: hybrid_radix
+        nvfp4_backend: triton
+      # Advertised by the endpoint; `none` works experimentally.
+      reasoning_efforts: [low, medium, xhigh]
+      reasoning_effort_default: xhigh
+      # Expected startup log lines on this machine, NOT failures:
+      #   "expert banks: low free RAM -> serial build"
+      #   "expert banks: slow path (serial build)"
+      # The adapter surfaces them as slow initialisation and keeps waiting.
+    clients:
+      opencode: true
+
 # V6 — one physical llama-server shared by the two aliases above.
 # Port 8090, NOT 8080: 8080 is the deliberate one-at-a-time port and is
 # reclaim-swept weekdays 14:00Z by the trade engine. Parameters are the
