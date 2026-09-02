@@ -195,9 +195,10 @@ class TestAliasConfiguration(unittest.TestCase):
 
     def test_reasoning_effort_is_a_per_request_field(self):
         """reasoning_effort is not launch configuration (never an argv flag);
-        it is the per-request level the harness sends. Role use pins low."""
+        it is the per-request level the harness sends. Role use pins medium
+        (low ended sessions after the first step, measured 2026-09-03)."""
         alias = yaml.safe_load((REPO_ROOT / "models.yaml").read_text())["models"][ALIAS]
-        self.assertEqual(alias.get("reasoning_effort"), "low")
+        self.assertEqual(alias.get("reasoning_effort"), "medium")
         self.assertNotIn("reasoning_effort", dict(ft._VALUE_FLAGS))
         self.assertNotIn("reasoning_effort", dict(ft._BOOL_FLAGS))
         self.assertEqual(alias["qualification"]["reasoning_efforts"],
