@@ -277,6 +277,11 @@ models:
       # sends it as thinking.budget_tokens and the Token Plan endpoint
       # accepts the field.
       MAX_THINKING_TOKENS: "32768"
+      # Human 2026-09-02 21:30: try thinking OFF on the supervisor. Measured on
+      # low: 873 output tokens/turn but still 19 s/turn and 97 % thinking
+      # share — the turn cost is context, and thinking off is the remaining
+      # output lever (3 vs 104 tokens on a probe). Revert if judgement slips.
+      CLAUDE_CODE_DISABLE_THINKING: "1"
     # Human decision 2026-09-02: acceptEdits, not auto mode — auto mode's
     # classifier is a second model call per shell command through the same
     # Token Plan endpoint; it timed out three times and refused a legitimate
