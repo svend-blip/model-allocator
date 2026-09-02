@@ -248,6 +248,17 @@ models:
       # default effort, 59 at low; the endpoint honours Claude's effort
       # field, so Claude Code's own effort setting is the lever.
       CLAUDE_CODE_EFFORT_LEVEL: medium
+    # Human decision 2026-09-02: acceptEdits, not auto mode — auto mode's
+    # classifier is a second model call per shell command through the same
+    # Token Plan endpoint; it timed out three times and refused a legitimate
+    # ladder rung-6 `git checkout -- <file>` in one session. The settings
+    # file (written by the Human) allows Bash outright and denies the
+    # irreversible operations; extra args come before --model.
+    claude_extra_args:
+      - --permission-mode
+      - acceptEdits
+      - --settings
+      - /home/svend/model-allocator/claude-settings/9000-planning-supervisor.json
     clients:
       claude-code: true
 
