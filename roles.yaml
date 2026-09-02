@@ -404,7 +404,10 @@ roles:
       simple-harness: cloud_minimax
 
   9000-implementer:
-    default_alias: cloud_minimax
+    # Human decision 2026-09-02 (Run 018 closure): implementer moves to
+    # Qwen3.8-Max via the Token Plan after five MiniMax shell-loop overflows
+    # in one day; decomposer and reviewer stay on cloud_minimax for comparison.
+    default_alias: cloud_qwen38max
     client_aliases:
       simple-harness: cloud_minimax
 
