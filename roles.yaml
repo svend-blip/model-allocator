@@ -326,10 +326,10 @@ roles:
   1000-reviewer:
     # Human decision 2026-09-02 (latency drafts A-D run in the 1000 family):
     # simple-harness like the 9000 chain. Previous: opencode.
-    default_alias: cloud_minimax
+    default_alias: cloud_deepseek_v4pro
     config_dir: 1000-reviewer
     client_aliases:
-      simple-harness: cloud_minimax
+      simple-harness: cloud_deepseek_v4pro
       opencode: cloud_minimax
 
   # ELOOP's two execution roles. They ran the qwen harness until 2026-08-27,
@@ -419,9 +419,9 @@ roles:
       simple-harness: cloud_qwen38max-fast
 
   9000-reviewer:
-    default_alias: cloud_minimax
+    default_alias: cloud_deepseek_v4pro
     client_aliases:
-      simple-harness: cloud_minimax
+      simple-harness: cloud_deepseek_v4pro
 
   # lightworker flow. The key must equal bridge_roles.role_key exactly:
   # `model-allocator run` resolves --role against this file and has no

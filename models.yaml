@@ -246,6 +246,24 @@ models:
       opencode: true
       simple-harness: true
 
+  cloud_deepseek_v4pro:
+    runtime_profile: qwencloud
+    # DeepSeek V4 Pro served by the Qwen Cloud Token Plan (same key, same
+    # host as cloud_qwen38max). Reviewer model for the 9000 and 1000 chains
+    # from 2026-09-02 (Human decision): a different model family than the
+    # Qwen roles that write the code, replacing MiniMax-M3, which overflowed
+    # its reviewer ceiling in both families. Measured: tools through
+    # simple-harness work (2 req / 3 calls / 9 s smoke test); the endpoint
+    # ignores reasoning_effort for this model (163 vs 125 reasoning tokens),
+    # so no effort knob is set. Context per the 9010 direct alias.
+    real_model: deepseek-v4-pro
+    context: 131072
+    max_output_tokens: 65536
+    lifecycle_policy: cloud_noop
+    clients:
+      opencode: true
+      simple-harness: true
+
   cloud_qwen38max-claude:
     runtime_profile: qwencloud_anthropic
     # Qwen3.8-Max for the claude-code client via the Token Plan's Anthropic
