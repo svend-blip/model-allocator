@@ -1110,3 +1110,40 @@ class TestFreeTokenHardware(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestChildEnvCudaToolkit(unittest.TestCase):
+    """The server process must find the toolkit that matches torch, not the
+    apt `nvcc` wrapper: a systemd broker has no toolkit on PATH (2026-09-02)."""
+
+    def setUp(self):
+        self.state_dir = tempfile.mkdtemp()
+        self.bin_dir = tempfile.mkdtemp()
+        self.executable = _fake_executable(self.bin_dir)
+
+    def _adapter(self):
+        resolved = _shipped_alias()
+        resolved["executable"] = self.executable
+        return FreeTokenAdapter(resolved, state_dir=self.state_dir)
+
+    def test_cuda_home_bin_is_prepended_after_the_venv_bin(self):
+        adapter = self._adapter()
+        with tempfile.TemporaryDirectory() as tmp:
+            cuda_bin = Path(tmp) / "bin"
+            cuda_bin.mkdir()
+            (cuda_bin / "nvcc").write_text("")
+            env = adapter.child_env({"PATH": "/usr/bin", "CUDA_HOME": tmp})
+        parts = env["PATH"].split(os.pathsep)
+        self.assertEqual(parts[0], os.path.dirname(adapter.resolve_executable()))
+        self.assertEqual(parts[1], str(cuda_bin))
+        self.assertEqual(parts[-1], "/usr/bin")
+
+    def test_no_toolkit_means_no_change(self):
+        adapter = self._adapter()
+        with patch.object(ft.FreeTokenAdapter, "cuda_toolkit_bin", staticmethod(lambda env: "")):
+            env = adapter.child_env({"PATH": "/usr/bin"})
+        self.assertEqual(env["PATH"].split(os.pathsep)[1:], ["/usr/bin"])
+
+    def test_cuda_home_without_nvcc_is_ignored(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertNotEqual(ft.FreeTokenAdapter.cuda_toolkit_bin({"CUDA_HOME": tmp}), os.path.join(tmp, "bin"))

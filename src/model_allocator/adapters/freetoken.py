@@ -303,7 +303,36 @@ class FreeTokenAdapter:
         bin_dir = os.path.dirname(self.resolve_executable())
         if bin_dir:
             env["PATH"] = bin_dir + os.pathsep + env.get("PATH", "")
+        cuda_bin = self.cuda_toolkit_bin(env)
+        if cuda_bin:
+            # After the venv bin, before everything else: FreeToken's NVFP4
+            # path JIT-builds kernels with the first `nvcc` on PATH and refuses
+            # a toolkit that does not match torch's CUDA. A systemd service
+            # (the bridge broker) has no toolkit on PATH, so the apt wrapper
+            # /usr/bin/nvcc (CUDA 12) wins and the server dies after loading
+            # 29 GB of weights. Measured 2026-09-02, 9000-02-ELOOP handoff 46.
+            env["PATH"] = env["PATH"].replace(
+                bin_dir + os.pathsep, bin_dir + os.pathsep + cuda_bin + os.pathsep, 1
+            ) if bin_dir else cuda_bin + os.pathsep + env.get("PATH", "")
         return env
+
+    @staticmethod
+    def cuda_toolkit_bin(env: dict) -> str:
+        """bin dir of the CUDA toolkit to compile against, or "" when unknown.
+
+        `CUDA_HOME` (the convention every CUDA build tool honours) wins; the
+        distro's `/usr/local/cuda` symlink is the fallback. No version is
+        guessed here — the runtime checks the toolkit against its torch build
+        and reports a mismatch itself.
+        """
+        home = (env.get("CUDA_HOME") or "").strip()
+        candidates = [home] if home else []
+        candidates.append(os.path.join(os.sep, "usr", "local", "cuda"))
+        for candidate in candidates:
+            bin_dir = os.path.join(candidate, "bin")
+            if os.path.isfile(os.path.join(bin_dir, "nvcc")):
+                return bin_dir
+        return ""
 
     def gpu_index(self) -> int | None:
         """FreeToken's `--gpu` index, from the allocator's own GPU naming.
