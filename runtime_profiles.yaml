@@ -54,11 +54,15 @@ runtime_profiles:
     backend: openai_compatible
     api_base_env: DASHSCOPE_API_BASE
     api_key_env: DASHSCOPE_API_KEY
-    # Alibaba Model Studio (DashScope), international endpoint, OpenAI-
-    # compatible mode. The harness adapter forces a /v1 suffix onto the base
-    # it hands to clients, and the validator only probes the base for
-    # reachability, so the base stops at the compatible-mode path.
-    default_api_base: https://dashscope-intl.aliyuncs.com/compatible-mode
+    # Qwen Cloud Token Plan (personal), region ap-southeast-1. The plan's
+    # keys start with sk-sp- and work ONLY against the token-plan host —
+    # Model Studio's dashscope-intl compatible-mode and the coding-intl host
+    # both answer invalid_api_key to them (measured 2026-09-02). The harness
+    # adapter forces a /v1 suffix onto the base it hands to clients, and the
+    # validator only probes the base for reachability, so the base stops at
+    # compatible-mode. An Anthropic-shaped endpoint exists at
+    # /apps/anthropic on the same host (not wired here).
+    default_api_base: https://token-plan.ap-southeast-1.maas.aliyuncs.com/compatible-mode
     provider: qwencloud
 
   cloud_deepseek_direct:

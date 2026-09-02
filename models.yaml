@@ -206,12 +206,13 @@ models:
       simple-harness: true
   cloud_qwen38max:
     runtime_profile: qwencloud
-    # Qwen3.8-Max (2026-09-02 snapshot) on DashScope's international
-    # compatible-mode endpoint. Declared by the Human 2026-09-02:
-    # chat completions, streaming, tools, reasoning and vision are all
-    # supported; context 1,000,000. Output capped at 64k like cloud_minimax:
-    # no client needs more in one reply and the cap bounds a runaway turn.
-    real_model: qwen3.8-max-0902
+    # Qwen3.8-Max on the Token Plan endpoint. The plan lists the model as
+    # `qwen3.8-max` (no date suffix; `qwen3.8-max-0902` is "Model not
+    # exist" there — measured 2026-09-02). Declared by the Human: chat
+    # completions, streaming, tools, reasoning and vision; context
+    # 1,000,000. Output capped at 64k like cloud_minimax: no client needs
+    # more in one reply and the cap bounds a runaway turn.
+    real_model: qwen3.8-max
     context: 1000000
     max_output_tokens: 65536
     lifecycle_policy: cloud_noop
