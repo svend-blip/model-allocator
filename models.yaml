@@ -224,6 +224,24 @@ models:
       opencode: true
       simple-harness: true
 
+  cloud_qwen38max-fast:
+    runtime_profile: qwencloud
+    # Qwen3.8-Max with thinking OFF, for roles that execute fully specified
+    # small handoffs (Human proposal 2026-09-02). Measured on the Token Plan
+    # for a small Go function: default effort 2,741 completion tokens of
+    # which 2,541 reasoning, 68 s to the first text token, 71.6 s total;
+    # thinking off 201 tokens, 1.0 s to first text, 3.2 s total, 93 tok/s.
+    # Same model, same endpoint, same key: only the thinking configuration
+    # differs. Rework handoffs are accepted as the price (Human ruling).
+    real_model: qwen3.8-max
+    context: 1000000
+    max_output_tokens: 131072
+    enable_thinking: false
+    lifecycle_policy: cloud_noop
+    clients:
+      opencode: true
+      simple-harness: true
+
   cloud_qwen38max-claude:
     runtime_profile: qwencloud_anthropic
     # Qwen3.8-Max for the claude-code client via the Token Plan's Anthropic
@@ -251,6 +269,10 @@ models:
       # on medium in the 019 kickoff session: 93 % of generated text was
       # thinking (39k chars vs 3k visible) over 43 turns of checklist work.
       CLAUDE_CODE_EFFORT_LEVEL: low
+      # Human 2026-09-02: a thinking budget for the supervisor; Claude Code
+      # sends it as thinking.budget_tokens and the Token Plan endpoint
+      # accepts the field.
+      MAX_THINKING_TOKENS: "32768"
     # Human decision 2026-09-02: acceptEdits, not auto mode — auto mode's
     # classifier is a second model call per shell command through the same
     # Token Plan endpoint; it timed out three times and refused a legitimate

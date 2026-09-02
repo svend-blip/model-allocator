@@ -59,6 +59,10 @@ COMMON_ALIAS_FIELDS: dict[str, object] = {
     # clients that send it (simple-harness reads SIMPLE_HARNESS_REASONING_EFFORT
     # and rejects any other value at start). Absent = the model's own default.
     "reasoning_effort": str,
+    # Hybrid-thinking controls for clients that send them (simple-harness:
+    # SIMPLE_HARNESS_ENABLE_THINKING / SIMPLE_HARNESS_THINKING_BUDGET).
+    "enable_thinking": bool,
+    "thinking_budget": int,
     # Pi frontend. `pi_tools` is the one of these that carries governance
     # rather than configuration: it is an allowlist the client enforces, so a
     # reviewer that must not write can be prevented from writing instead of
