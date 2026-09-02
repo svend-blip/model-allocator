@@ -50,6 +50,17 @@ runtime_profiles:
   # Claude Code against DeepSeek; the claude-code adapter's
   # openai_compatible branch turns it into ANTHROPIC_BASE_URL +
   # ANTHROPIC_AUTH_TOKEN=$DEEPSEEK_API_KEY. Live-verified 2026-09-01.
+  qwencloud:
+    backend: openai_compatible
+    api_base_env: DASHSCOPE_API_BASE
+    api_key_env: DASHSCOPE_API_KEY
+    # Alibaba Model Studio (DashScope), international endpoint, OpenAI-
+    # compatible mode. The harness adapter forces a /v1 suffix onto the base
+    # it hands to clients, and the validator only probes the base for
+    # reachability, so the base stops at the compatible-mode path.
+    default_api_base: https://dashscope-intl.aliyuncs.com/compatible-mode
+    provider: qwencloud
+
   cloud_deepseek_direct:
     backend: openai_compatible
     api_base_env: DEEPSEEK_API_BASE
