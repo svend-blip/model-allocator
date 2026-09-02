@@ -324,10 +324,13 @@ roles:
   # three ELOOP roles now share one resident model, which is what the alias's
   # stop_after_step lifecycle already assumes.
   1000-reviewer:
-    default_alias: freetoken-qwen36-35b-a3b
+    # Human decision 2026-09-02 (latency drafts A-D run in the 1000 family):
+    # simple-harness like the 9000 chain. Previous: opencode.
+    default_alias: cloud_minimax
     config_dir: 1000-reviewer
     client_aliases:
-      opencode: freetoken-qwen36-35b-a3b
+      simple-harness: cloud_minimax
+      opencode: cloud_minimax
 
   # ELOOP's two execution roles. They ran the qwen harness until 2026-08-27,
   # when run 002 proved that combination unusable: this alias advertises
@@ -342,19 +345,22 @@ roles:
   # and `num_tokens` (see adapters/opencode._client_context) — without that
   # this move would have relocated the failure rather than removed it.
   1000-execution-decomposer:
-    default_alias: freetoken-qwen36-35b-a3b
+    # Human decision 2026-09-02 (latency drafts A-D run in the 1000 family):
+    # simple-harness like the 9000 chain. Previous: opencode.
+    default_alias: cloud_qwen38max
     config_dir: 1000-execution-decomposer
     client_aliases:
-      opencode: freetoken-qwen36-35b-a3b
+      simple-harness: cloud_qwen38max
+      opencode: cloud_qwen38max
 
   1000-implementer:
-    # Switched to cloud_minimax 2026-08-31 (run 011 escalation boundary:
-    # four consecutive evidence-discipline failures on the local MoE;
-    # Human-delegated model authority, see runs/011/RUN-LEDGER.md).
-    default_alias: cloud_minimax
+    # Human decision 2026-09-02 (latency drafts A-D run in the 1000 family):
+    # simple-harness like the 9000 chain. Previous: opencode.
+    default_alias: cloud_qwen38max-fast
     config_dir: 1000-implementer
     client_aliases:
-      opencode: cloud_minimax
+      simple-harness: cloud_qwen38max-fast
+      opencode: cloud_qwen38max-fast
 
   # 1010 flows — the all-cloud twin of the 1000 setup (Human decision
   # 2026-08-28), targeting /home/svend/simple-harness. Keys must equal
