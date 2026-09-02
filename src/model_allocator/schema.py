@@ -55,6 +55,10 @@ COMMON_ALIAS_FIELDS: dict[str, object] = {
     # CLAUDE_CODE_SUBAGENT_MODEL, CLAUDE_CODE_MAX_CONTEXT_TOKENS). The adapter
     # keeps its own keys (base URL, auth token, --model) authoritative.
     "claude_env": dict,
+    # OpenAI-compatible `reasoning_effort` (low | medium | high | xhigh) for
+    # clients that send it (simple-harness reads SIMPLE_HARNESS_REASONING_EFFORT
+    # and rejects any other value at start). Absent = the model's own default.
+    "reasoning_effort": str,
     # Pi frontend. `pi_tools` is the one of these that carries governance
     # rather than configuration: it is an allowlist the client enforces, so a
     # reviewer that must not write can be prevented from writing instead of
