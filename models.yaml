@@ -698,6 +698,13 @@ models:
     # verifies the live figure against this before declaring READY.
     context: 262144
     lifecycle_policy: stop_after_step
+    # KV budget (measured 2026-09-02): with the minimal launch FreeToken fills
+    # VRAM with the expert cache and leaves 8256 tokens for prompt+generation,
+    # which no agent role fits in. Reserving the KV floor first costs almost
+    # nothing (131k tokens = 3.10 GiB, sparse attention) and generation stays
+    # at ~46 tok/s; a 112k-token prompt prefills in 25 s and answers correctly.
+    moe_cache_auto: true
+    kv_reserve_tokens: 131072
     # Measured at ready: ~27.7 GiB (28365 MiB) in use, ~2.7 GiB free. An
     # exclusive workload — refuse up front rather than OOM after minutes.
     min_free_vram_mib: 28500
@@ -721,6 +728,7 @@ models:
       #   "expert banks: slow path (serial build)"
       # The adapter surfaces them as slow initialisation and keeps waiting.
     clients:
+      simple-harness: true
       opencode: true
 
 # V6 — one physical llama-server shared by the two aliases above.

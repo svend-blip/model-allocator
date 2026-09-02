@@ -324,9 +324,10 @@ class Validator:
                 "is a project-local venv, so PATH will not find it — set "
                 "FREETOKEN_BIN or the profile's executable")
 
-        if not resolved.get("num_tokens") and not resolved.get("num_pages"):
+        if (not resolved.get("num_tokens") and not resolved.get("num_pages")
+                and not resolved.get("kv_reserve_tokens")):
             result["warnings"].append(
-                "No KV budget declared (num_tokens): FreeToken will size it "
+                "No KV budget declared (num_tokens or kv_reserve_tokens): FreeToken will size it "
                 "from leftover VRAM, which on a full card lands far below the "
                 "model's context — measured at 14303 tokens against an "
                 "advertised 262144")

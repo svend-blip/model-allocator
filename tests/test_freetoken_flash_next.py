@@ -172,12 +172,22 @@ class TestAliasConfiguration(unittest.TestCase):
         self.assertEqual(alias["qualification"]["gpu_class"], "RTX_5090")
 
     def test_alias_pins_no_backend_flags(self):
-        """The auto-selected backends are recorded as facts, not as flags."""
+        """The auto-selected backends are recorded as facts, not as flags.
+
+        The KV budget is different: it is not a backend choice but the one
+        knob without which the minimal launch is unusable for its purpose.
+        Measured 2026-09-02: minimal launch = 8256 tokens for prompt plus
+        generation; with moe_cache_auto + kv_reserve_tokens 131072 the floor
+        costs 3.10 GiB, generation stays ~46 tok/s and a 112k-token prompt
+        prefills in 25 s. So the two budget keys are allowed and pinned.
+        """
         alias = yaml.safe_load((REPO_ROOT / "models.yaml").read_text())["models"][ALIAS]
         for key in ("nvfp4_backend", "moe_backend", "attention_backend",
-                    "moe_cache_size", "moe_cache_auto", "cache_type",
+                    "moe_cache_size", "moe_cache_rate", "cache_type",
                     "num_tokens", "num_pages", "memory_ratio"):
             self.assertNotIn(key, alias, f"{key} must not be pinned")
+        self.assertTrue(alias.get("moe_cache_auto") is True)
+        self.assertEqual(alias.get("kv_reserve_tokens"), 131072)
         self.assertEqual(alias["qualification"]["auto_selected"]["attention_backend"],
                          "qsa_sparse")
         self.assertEqual(alias["qualification"]["auto_selected"]["nvfp4_backend"],
@@ -279,7 +289,10 @@ class TestLaunch(unittest.TestCase):
         return FreeTokenAdapter(resolved, state_dir=self.state_dir)
 
     def test_launch_is_minimal(self):
-        """MANDATORY REGRESSION: exactly the qualified command, nothing more.
+        """MANDATORY REGRESSION: exactly the qualified command plus the KV budget.
+
+        The two budget flags were added after measurement (see
+        test_alias_pins_no_backend_flags); everything else stays minimal.
 
         `--nvfp4-backend auto` was measured load-bearing on the dense 27B
         alias and is NOT carried over: on this MoE checkpoint FreeToken
@@ -293,6 +306,8 @@ class TestLaunch(unittest.TestCase):
             "--host", "127.0.0.1",
             "--port", "8090",
             "--gpu", "0",
+            "--kv-reserve-tokens", "131072",
+            "--moe-cache-auto",
         ])
 
     def test_no_forced_backend_flags(self):
@@ -835,7 +850,8 @@ class TestFingerprint(unittest.TestCase):
         self.assertEqual(fp["version"], "0.1.2")
         self.assertEqual(fp["launch_args"],
                          ["--model-path", MODEL, "--host", "127.0.0.1",
-                          "--port", "8090", "--gpu", "0"])
+                          "--port", "8090", "--gpu", "0",
+                          "--kv-reserve-tokens", "131072", "--moe-cache-auto"])
 
     def test_changes_with_material_launch_properties(self):
         base = self._adapter().runtime_fingerprint()["digest"]
