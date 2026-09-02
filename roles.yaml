@@ -409,7 +409,7 @@ roles:
     # in one day; decomposer and reviewer stay on cloud_minimax for comparison.
     default_alias: cloud_qwen38max
     client_aliases:
-      simple-harness: cloud_minimax
+      simple-harness: cloud_qwen38max
 
   9000-reviewer:
     default_alias: cloud_minimax
