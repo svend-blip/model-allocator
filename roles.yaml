@@ -391,10 +391,12 @@ roles:
   # MODEL half of their identity. The escalation supervisor runs
   # harness_provider (dsh) and is deliberately absent here.
   9000-planning-supervisor:
-    default_alias: opus5
+    # Human decision 2026-09-02: Qwen3.8-Max via the Token Plan's Anthropic
+    # endpoint, harness stays claude-code. Previous: opus5.
+    default_alias: cloud_qwen38max-claude
     config_dir: 9000-planning-supervisor
     client_aliases:
-      claude-code: opus5
+      claude-code: cloud_qwen38max-claude
 
   9000-execution-decomposer:
     default_alias: cloud_minimax
