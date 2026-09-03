@@ -496,6 +496,32 @@ roles:
 | `shared_runtime` (V6) | leave running; reuse via recorded instance identity across all sharing aliases; only `stop-instance --name <ri>` may terminate it |
 | `cloud_noop` | cloud backend; no local start/stop |
 
+### FreeToken notes (measured 2026-09-03)
+
+- **KV budget is configuration.** The minimal launch lets FreeToken fill
+  VRAM with the MoE expert cache and leaves ~8k tokens for prompt plus
+  generation. On the alias set `moe_cache_auto: true` and
+  `kv_reserve_tokens: <N>` (131072 costs 3.1 GiB with sparse attention;
+  generation stays ~46 tok/s on Qwen3.8-Flash-Next-NVFP4). `validate`
+  warns when no KV budget is declared.
+- **Toolkit on the server's PATH.** FreeToken JIT-builds NVFP4 kernels with
+  the first `nvcc` on `PATH` and refuses a toolkit that does not match
+  torch's CUDA. `child_env` prepends `$CUDA_HOME/bin` (fallback
+  `/usr/local/cuda/bin`) after the venv bin; a systemd service that launches
+  models must carry `Environment=CUDA_HOME=…`.
+- **Readiness is a chat completion.** `/v1/models` answers before the
+  weights are loaded; `start` waits for the runtime's own ready state, and a
+  manual warm-up should poll a `POST /v1/chat/completions` (a bare `start`
+  uses a 120 s CLI timeout — pass `--timeout` for cold loads).
+- **Per-request fields on the alias:** `reasoning_effort` (Flash-Next
+  supports low/medium/xhigh, default xhigh) is sent by the client per
+  request and is never a launch flag; `max_output_tokens` on a FreeToken
+  alias WOULD become a launch flag, so the harness output ceiling lives on
+  the DPMtF role instead.
+- **Residency across roles** is the bridge's decision, not the adapter's:
+  DPMtF `dispatch.py` keeps a local model resident when the next role binds
+  no GPU (see that README's "Model residency at role transitions").
+
 ### Runtime instances (V6 config surface)
 
 Two new top-level sections in `models.yaml` declare the shared
