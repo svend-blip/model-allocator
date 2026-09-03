@@ -705,6 +705,10 @@ models:
     # at ~46 tok/s; a 112k-token prompt prefills in 25 s and answers correctly.
     moe_cache_auto: true
     kv_reserve_tokens: 131072
+    # Output ceiling for the harness (SIMPLE_HARNESS_MAX_OUTPUT_TOKENS). Measured
+    # 2026-09-03 h51: the 8192 default truncated a single write_file call at
+    # 8191 completion tokens → unparseable tool call → exit 1, nothing written.
+    max_output_tokens: 32768
     # Role use (9000-implementer). The endpoint's default is xhigh; the level
     # is sent per request via SIMPLE_HARNESS_REASONING_EFFORT. Measured
     # 2026-09-03 at low: two of three sessions ended after the first step
