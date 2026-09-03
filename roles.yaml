@@ -354,12 +354,15 @@ roles:
       opencode: cloud_qwen38max
 
   1000-implementer:
+    # 2026-09-03 03:35: thinking back ON (cloud_qwen38max, effort low) — the
+    # no-thinking variant overflowed 160 turns twice in Run 025 (h128, h130)
+    # re-reading the same dispatch.py snippets; previous: cloud_qwen38max-fast.
     # Human decision 2026-09-02 (latency drafts A-D run in the 1000 family):
     # simple-harness like the 9000 chain. Previous: opencode.
-    default_alias: cloud_qwen38max-fast
+    default_alias: cloud_qwen38max
     config_dir: 1000-implementer
     client_aliases:
-      simple-harness: cloud_qwen38max-fast
+      simple-harness: cloud_qwen38max
       opencode: cloud_qwen38max-fast
 
   # 1010 flows — the all-cloud twin of the 1000 setup (Human decision
