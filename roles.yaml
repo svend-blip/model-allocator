@@ -413,9 +413,9 @@ roles:
       simple-harness: cloud_qwen38max
 
   9000-implementer:
-    # 2026-09-03 GPU window (Human ruling): cloud_qwen38max-fast for Runs 024+025
-    # so engine-starting handoffs own the card; back to freetoken-qwen38-flash-next
-    # (effort medium) at 025's closure.
+    # 2026-09-03: back on freetoken-qwen38-flash-next (effort medium) after the
+    # 024/025 GPU window (cloud_qwen38max-fast while engine-starting handoffs
+    # owned the card).
     # Human decision 2026-09-02 (Run 018 closure): implementer moves to
     # Qwen3.8-Max via the Token Plan after five MiniMax shell-loop overflows
     # in one day. From the cycle after Run 019: thinking off (cloud_qwen38max-
@@ -425,9 +425,9 @@ roles:
     # Measured: TTFT 2.5-3.7 s without reasoning, ~46 tok/s, 131k KV floor,
     # simple-harness tool calls (write_file/shell/read_file) pass. Previous:
     # cloud_qwen38max-fast.
-    default_alias: cloud_qwen38max-fast
+    default_alias: freetoken-qwen38-flash-next
     client_aliases:
-      simple-harness: cloud_qwen38max-fast
+      simple-harness: freetoken-qwen38-flash-next
 
   9000-reviewer:
     default_alias: cloud_deepseek_v4pro
