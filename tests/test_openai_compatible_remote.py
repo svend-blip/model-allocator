@@ -108,3 +108,34 @@ def test_no_model_configured_is_reported(monkeypatch):
     result = adapter.is_model_available("")
     assert result["available"] is False
     assert "no model" in (result["error"] or "")
+
+
+# --- Queued remote inference nodes (SCOPE addendum 2026-09-05) ---
+# The FIFO single-worker queue is the runtime's own concern (FreeToken
+# --max-running-requests 1); the allocator only ROUTES each alias to its fixed
+# node endpoint. These pin that two nodes resolve INDEPENDENTLY to distinct
+# fixed endpoints, each with its own auth-token env var.
+
+NODE_1 = {"backend": "openai_compatible", "api_base_env": "AI_PC_1_API_BASE",
+          "default_api_base": "http://ai-pc-1:8090/v1", "api_key_env": "AI_PC_1_API_TOKEN"}
+NODE_2 = {"backend": "openai_compatible", "api_base_env": "AI_PC_2_API_BASE",
+          "default_api_base": "http://ai-pc-2:8090/v1", "api_key_env": "AI_PC_2_API_TOKEN"}
+
+
+def test_two_nodes_resolve_independently_to_distinct_endpoints(monkeypatch):
+    monkeypatch.delenv("AI_PC_1_API_BASE", raising=False)
+    monkeypatch.delenv("AI_PC_2_API_BASE", raising=False)
+    base1 = OpenAICompatibleAdapter.api_base_from_profile(NODE_1)
+    base2 = OpenAICompatibleAdapter.api_base_from_profile(NODE_2)
+    assert base1 == "http://ai-pc-1:8090/v1"
+    assert base2 == "http://ai-pc-2:8090/v1"
+    assert base1 != base2  # no shared/pooled endpoint — one alias -> one node
+
+
+def test_node_auth_token_is_env_backed_not_committed(monkeypatch):
+    """Access control uses an env-var token; the config never carries the value."""
+    adapter = OpenAICompatibleAdapter(api_base=NODE_1["default_api_base"], api_key_env="AI_PC_1_API_TOKEN")
+    monkeypatch.delenv("AI_PC_1_API_TOKEN", raising=False)
+    assert adapter.are_credentials_present()["present"] is False
+    monkeypatch.setenv("AI_PC_1_API_TOKEN", "tok-from-env")
+    assert adapter.are_credentials_present()["present"] is True

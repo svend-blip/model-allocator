@@ -7,6 +7,48 @@ remote OpenAI-compatible endpoint). Keep it deliberately simple. Cloud models
 must keep working exactly as today. Keep inference nodes and Lightworkers
 conceptually separate.
 
+## Implementation Status (2026-09-05)
+
+The **allocator side is config + routing + validation**, reusing the
+`openai_compatible` adapter and the Remote Model Endpoints work — no parallel
+system, no new allocator queue:
+- **Routing / config:** each node is an `openai_compatible` runtime profile with
+  its own `default_api_base` (the node endpoint) and `api_key_env` (its API
+  token). Two independent nodes added to the examples: profiles `ai_pc_1` /
+  `ai_pc_2` (distinct endpoints) with aliases `implementer-local` /
+  `reviewer-local`. One alias -> one node; nodes are independent (no pool, no
+  balancing).
+- **The FIFO single-worker queue is the RUNTIME's job, not the allocator's:**
+  FreeToken serializes with `--max-running-requests 1` (the adapter already
+  knows that flag) — that IS the node's one-request-at-a-time queue in front of
+  the warm model. The allocator only routes; it does not reimplement a queue.
+- **Warm model:** the node keeps the model loaded (FreeToken stays running); the
+  allocator's `openai_compatible` start/stop for a remote node is validation-
+  only (no unload between requests).
+- **Context isolation:** OpenAI-compatible `/v1/chat/completions` calls are
+  stateless per request — no session carries between jobs by default, which is
+  the required isolation (persistent conversational sessions are out of scope).
+- **Access control:** the per-node API token is `api_key_env` (env-backed, never
+  committed); reach the node over LAN/Tailscale. Tests pin two-node independence
+  and env-backed tokens; `tests/test_openai_compatible_remote.py`. Full suite
+  green, no regression.
+
+**Still requires the physical AI-PCs** (acceptance criteria 1-6, 8): running
+FreeToken nodes with warm models + `--max-running-requests 1`, and multi-client
+submission over the tailnet, to demonstrate the live warm-model + FIFO + isolation
+behaviour end to end. That is deployment (launch the runtime with the queue flag
+on each AI-PC + point the aliases at the real endpoints in the live `models.yaml`),
+not new allocator code.
+
+**Design note — observable job states:** the addendum lists minimum job states
+(QUEUED/RUNNING/COMPLETED/FAILED). FreeToken's `--max-running-requests 1` gives
+the *behaviour* (serialized, one-at-a-time, others wait) but not an explicit
+queue API exposing those states per job. If observable per-job states are wanted
+beyond the runtime's implicit serialization, that is a small NODE-side queue
+proxy in front of the runtime — a separate service on the AI-PC, kept out of the
+allocator's routing per "the FIFO queue lives on the node." Flagged for the
+Human as a follow-up decision; not built here.
+
 ## Mission
 
 Extend Model Allocator so DPMtF can use dedicated AI-PCs as **remote inference

@@ -67,3 +67,23 @@ runtime_profiles:
     default_api_base: http://remote-ai-pc:8090/v1
     api_key_env: REMOTE_AI_PC_API_KEY
     provider: remote_ai_pc
+
+  # Two independent queued remote inference nodes (SCOPE addendum 2026-09-05).
+  # Each is a dedicated AI-PC running FreeToken (or another OpenAI-compatible
+  # runtime) with ONE warm model, serialized single-worker via the runtime's
+  # own --max-running-requests 1 (that IS the node's FIFO queue; the allocator
+  # only routes). Reached over LAN/Tailscale; the optional API token lives in
+  # the env var, never committed. Nodes operate independently — no load
+  # balancing, no failover, no dynamic selection (out of scope).
+  ai_pc_1:
+    backend: openai_compatible
+    api_base_env: AI_PC_1_API_BASE
+    default_api_base: http://ai-pc-1:8090/v1
+    api_key_env: AI_PC_1_API_TOKEN
+    provider: remote_inference_node
+  ai_pc_2:
+    backend: openai_compatible
+    api_base_env: AI_PC_2_API_BASE
+    default_api_base: http://ai-pc-2:8090/v1
+    api_key_env: AI_PC_2_API_TOKEN
+    provider: remote_inference_node

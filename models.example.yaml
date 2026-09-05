@@ -139,6 +139,28 @@ models:
       opencode: true
       claude-code: true
 
+
+  # implementer-local + reviewer-local: two roles on two independent queued
+  # remote inference nodes (SCOPE addendum). DPMtF references the alias only;
+  # each node keeps its warm model and serializes requests FIFO. Cloud aliases
+  # (e.g. a cloud supervisor) still work alongside these, no queue on cloud.
+  implementer-local:
+    runtime_profile: ai_pc_1
+    real_model: coder-model
+    context: 131072
+    lifecycle_policy: persistent
+    clients:
+      opencode: true
+      claude-code: true
+  reviewer-local:
+    runtime_profile: ai_pc_2
+    real_model: reviewer-model
+    context: 131072
+    lifecycle_policy: persistent
+    clients:
+      opencode: true
+      claude-code: true
+
 runtime_instances:
   # One physical llama-server process; the two aliases above resolve to it.
   shared-llm-118b:
