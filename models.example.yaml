@@ -126,6 +126,19 @@ models:
       claude-code: false
 
 
+
+  # reviewer-remote resolves to the remote_ai_pc endpoint (SCOPE addendum).
+  # Assign it to a role or Step Key exactly like any other alias; DPMtF
+  # references the alias only and the allocator resolves the fixed endpoint.
+  reviewer-remote:
+    runtime_profile: remote_ai_pc
+    real_model: Qwen3.8-Flash-Next
+    context: 131072
+    lifecycle_policy: persistent
+    clients:
+      opencode: true
+      claude-code: true
+
 runtime_instances:
   # One physical llama-server process; the two aliases above resolve to it.
   shared-llm-118b:

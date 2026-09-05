@@ -8,6 +8,36 @@ run already provides the required abstraction. Keep it architecturally separate
 from the Lightworker capability (see Lightworker Separation below). Not yet
 committed — pending Human review.
 
+## Implementation Status (2026-09-05)
+
+The **core capability already existed** and is reused rather than rebuilt: a
+model alias resolves through a `runtime_profile` to an
+`openai_compatible` backend whose base URL points at any host, and
+`OpenAICompatibleAdapter` already provides `api_base` resolution and
+`is_api_reachable()` (transport failure → unreachable; a stopped remote model
+therefore surfaces as an explicit failure, never a reroute). A remote AI-PC
+endpoint is that adapter with a `default_api_base` pointing at the remote
+machine over LAN/Tailscale.
+
+This addendum's delta, implemented and tested:
+- `OpenAICompatibleAdapter.is_model_available(model)` — the *where-practical*
+  model-availability check (probes `/models` and `/v1/models`, both base-URL
+  conventions); an endpoint without a model list is a soft warning, not a hard
+  failure.
+- Example config: runtime profile `remote_ai_pc` (in
+  `runtime_profiles.example.yaml`) + alias `reviewer-remote` (in
+  `models.example.yaml`) — one alias → one fixed endpoint → one remote AI-PC.
+- Tests: `tests/test_openai_compatible_remote.py` (alias→endpoint resolution,
+  env override, model-available/absent, /v1 fall-through, unreachable = clear
+  failure). Full suite green, no regression.
+
+**Still requires a live setup** (acceptance criteria 1–8): a real model on
+AI-PC #2 exposing an OpenAI-compatible endpoint, and the alias assigned to a
+DPMtF role/Step Key, to demonstrate an end-to-end request/response over the
+tailnet and a clear failure when the remote model is stopped. No new code is
+expected for that — it is configuration (add the alias to the live `models.yaml`
+pointing at the real remote base URL) plus the physical second machine.
+
 ## Mission
 
 Extend Model Allocator so a model running on another AI-PC can be used by DPMtF

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import urllib.request
 from typing import Any
@@ -71,6 +72,42 @@ class OpenAICompatibleAdapter:
             "api_base": self.api_base,
             "error": reachable.get("error") or credentials.get("error"),
         }
+
+    def is_model_available(self, model: str = "") -> dict:
+        """Check the configured model is listed at the endpoint's model list.
+
+        Probes ``/models`` (when the base already includes ``/v1``) and
+        ``/v1/models`` (when the base stops at the host), so it works for
+        both base-URL conventions used across the runtime profiles. Model
+        availability is a *where-practical* check per the Remote AI-PC
+        Model Endpoints addendum: an endpoint that does not expose a model
+        list, or a transport failure, is reported as an inability to
+        confirm (``available`` False with an ``error``) rather than a hard
+        failure, which the validator surfaces as a warning.
+        """
+        if not model:
+            return {"available": False, "error": "no model configured"}
+        last_error = None
+        for path in ("/models", "/v1/models"):
+            try:
+                result = self._request(path)
+            except OpenAICompatibleAdapterError as exc:
+                last_error = str(exc)
+                continue
+            if result.get("status_code") not in (200, None):
+                last_error = f"{path} returned status {result.get('status_code')}"
+                continue
+            try:
+                doc = json.loads(result.get("body") or "{}")
+            except ValueError as exc:
+                last_error = f"could not parse {path}: {exc}"
+                continue
+            entries = doc.get("data") if isinstance(doc, dict) else None
+            ids = [e.get("id") for e in entries if isinstance(e, dict)] if isinstance(entries, list) else []
+            if model in ids:
+                return {"available": True, "error": None}
+            last_error = f"model '{model}' not listed at {path}"
+        return {"available": False, "error": last_error or "no model list endpoint responded"}
 
     def start(self) -> dict:
         """Cloud warm-up is validation-only."""

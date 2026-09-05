@@ -53,3 +53,17 @@ runtime_profiles:
     password_env: ONYX_ADMIN_PASSWORD
     provider: onyx
     capabilities: [invoke]
+
+  # Remote AI-PC model endpoint (SCOPE addendum 2026-09-05): an OpenAI-
+  # compatible model served on ANOTHER AI-PC, reached over LAN/Tailscale.
+  # One alias -> one fixed endpoint -> one remote machine; no automatic
+  # routing. Validation uses the openai_compatible adapter's
+  # is_api_reachable + is_model_available; an unreachable endpoint is a
+  # normal explicit failure, never a reroute. Set REMOTE_AI_PC_API_KEY
+  # only if the remote requires one (never commit the value).
+  remote_ai_pc:
+    backend: openai_compatible
+    api_base_env: REMOTE_AI_PC_API_BASE
+    default_api_base: http://remote-ai-pc:8090/v1
+    api_key_env: REMOTE_AI_PC_API_KEY
+    provider: remote_ai_pc
