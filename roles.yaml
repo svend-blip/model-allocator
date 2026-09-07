@@ -400,17 +400,24 @@ roles:
   # MODEL half of their identity. The escalation supervisor runs
   # harness_provider (dsh) and is deliberately absent here.
   9000-planning-supervisor:
-    # Human decision 2026-09-02: Qwen3.8-Max via the Token Plan's Anthropic
-    # endpoint, harness stays claude-code. Previous: opus5.
-    default_alias: cloud_qwen38max-claude
+    # Human decision 2026-09-06: BACK to opus5 (Claude subscription, NOT the
+    # Token Plan) — the 1-week token-plan quota exhausted mid-run 059 and the
+    # Human cannot spend more token-plan tokens before 09-09. opus5 keeps the
+    # supervisor at supervisor-grade quality off the exhausted plan. Previous:
+    # cloud_qwen38max-claude (Qwen3.8-Max via the Token Plan's Anthropic endpoint).
+    default_alias: opus5
     config_dir: 9000-planning-supervisor
     client_aliases:
-      claude-code: cloud_qwen38max-claude
+      claude-code: opus5
 
   9000-execution-decomposer:
-    default_alias: cloud_qwen38max
+    # Human decision 2026-09-06: local FreeToken Flash-Next, OFF the Token Plan
+    # (1-week quota exhausted before 09-09). Previous: cloud_qwen38max (Qwen3.8-Max
+    # via the Token Plan). The reviewer stays on cloud_deepseek_v4pro so the
+    # topped-up token plan serves only the cheap quality-critical review role.
+    default_alias: freetoken-qwen38-flash-next
     client_aliases:
-      simple-harness: cloud_qwen38max
+      simple-harness: freetoken-qwen38-flash-next
 
   9000-implementer:
     # 2026-09-03: back on freetoken-qwen38-flash-next (effort medium) after the
@@ -430,9 +437,12 @@ roles:
       simple-harness: freetoken-qwen38-flash-next
 
   9000-reviewer:
-    default_alias: cloud_deepseek_v4pro
+    # Human decision 2026-09-06: deepseek-v4-pro DIRECT at deepseek.com
+    # (cloud_deepseek_v4pro_direct), OFF the Qwen Cloud Token Plan (quota
+    # exhausted before 09-09). Same model, funded direct endpoint.
+    default_alias: cloud_deepseek_v4pro_direct
     client_aliases:
-      simple-harness: cloud_deepseek_v4pro
+      simple-harness: cloud_deepseek_v4pro_direct
 
   # lightworker flow. The key must equal bridge_roles.role_key exactly:
   # `model-allocator run` resolves --role against this file and has no
@@ -514,10 +524,47 @@ roles:
       opencode: cloud_minimax
 
   # ── DPMtF 9010 flows (migration 093) — PLOOP planning supervisor ─────
-  # DeepSeek V4 Pro DIRECT at DeepSeek over claude-code. The 9010 ELOOP
-  # roles run codex as a native harness (harness_provider) and therefore
-  # need no entry here.
+  # DeepSeek V4 Pro DIRECT at DeepSeek over claude-code.
   9010-planning-supervisor:
     default_alias: cloud_deepseek
     client_aliases:
       claude-code: cloud_deepseek
+
+  # 9010 ELOOP roles: Human decision 2026-09-07 — moved OFF codex/MiniMax onto
+  # simple-harness + deepseek-v4-pro DIRECT (cloud_deepseek_v4pro_direct). The
+  # codex path could not carry DeepSeek: codex resolves ONE global provider and
+  # preferred_cloud_harness's imple-codex-minimaxM3 actively needs MiniMax, so
+  # these roles switched harness rather than break that flow.
+  9010-execution-decomposer:
+    default_alias: cloud_deepseek_v4pro_direct
+    client_aliases:
+      simple-harness: cloud_deepseek_v4pro_direct
+  9010-implementer:
+    default_alias: cloud_deepseek_v4pro_direct
+    client_aliases:
+      simple-harness: cloud_deepseek_v4pro_direct
+  9010-reviewer:
+    default_alias: cloud_deepseek_v4pro_direct
+    client_aliases:
+      simple-harness: cloud_deepseek_v4pro_direct
+
+  # ── DPMtF 1020 flows (migration 104) — pure-cloud pair for AI_AdvisoryBoard ─
+  # PLOOP planning supervisor: opus5 over claude-code (copy of 9000). ELOOP
+  # decomposer/implementer/reviewer: simple-harness + deepseek-v4-pro DIRECT.
+  1020-planning-supervisor:
+    default_alias: opus5
+    config_dir: 1020-planning-supervisor
+    client_aliases:
+      claude-code: opus5
+  1020-execution-decomposer:
+    default_alias: cloud_deepseek_v4pro_direct
+    client_aliases:
+      simple-harness: cloud_deepseek_v4pro_direct
+  1020-implementer:
+    default_alias: cloud_deepseek_v4pro_direct
+    client_aliases:
+      simple-harness: cloud_deepseek_v4pro_direct
+  1020-reviewer:
+    default_alias: cloud_deepseek_v4pro_direct
+    client_aliases:
+      simple-harness: cloud_deepseek_v4pro_direct
