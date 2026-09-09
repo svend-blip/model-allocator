@@ -444,6 +444,27 @@ roles:
     client_aliases:
       simple-harness: cloud_deepseek_v4pro_direct
 
+  # 2000 flow family (Human 2026-09-09): same roles as 9000, but ALL agent
+  # roles run on cloud_qwen38flash over simple-harness. Created to test
+  # FlowRunner + Export FlowApp against a cloud model; run once the Qwen
+  # Cloud Token Plan renews. Keys must equal bridge_roles.role_key exactly.
+  2000-planning-supervisor:
+    default_alias: cloud_qwen38flash
+    client_aliases:
+      simple-harness: cloud_qwen38flash
+  2000-execution-decomposer:
+    default_alias: cloud_qwen38flash
+    client_aliases:
+      simple-harness: cloud_qwen38flash
+  2000-implementer:
+    default_alias: cloud_qwen38flash
+    client_aliases:
+      simple-harness: cloud_qwen38flash
+  2000-reviewer:
+    default_alias: cloud_qwen38flash
+    client_aliases:
+      simple-harness: cloud_qwen38flash
+
   # lightworker flow. The key must equal bridge_roles.role_key exactly:
   # `model-allocator run` resolves --role against this file and has no
   # --alias form, so a rename on either side breaks the other.

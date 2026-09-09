@@ -246,6 +246,25 @@ models:
       opencode: true
       simple-harness: true
 
+  cloud_qwen38flash:
+    runtime_profile: qwencloud
+    # Qwen3.8-Flash on the Token Plan endpoint (Human, 2026-09-09) for the
+    # 2000 flow family, which exists to test FlowRunner + Export FlowApp
+    # against a cloud model over simple-harness. Mirrors cloud_qwen38max's
+    # shape with real_model qwen3.8-flash. The token-plan quota renews later
+    # in the day; the 2000 flows are created now and run once it is live.
+    # context/max_output mirror qwen3.8-max — verify against qwen3.8-flash's
+    # actual limits when the plan opens.
+    real_model: qwen3.8-flash
+    context: 1000000
+    max_output_tokens: 131072
+    lifecycle_policy: cloud_noop
+    # simple-harness reaches it through the generic OpenAI-compatible path;
+    # opencode too. pi is absent (no qwencloud entry in Pi's provider table).
+    clients:
+      opencode: true
+      simple-harness: true
+
   cloud_deepseek_v4pro:
     runtime_profile: qwencloud
     # DeepSeek V4 Pro served by the Qwen Cloud Token Plan (same key, same
@@ -262,6 +281,18 @@ models:
     lifecycle_policy: cloud_noop
     clients:
       opencode: true
+      simple-harness: true
+
+  # Human decision 2026-09-06: deepseek-v4-pro via DeepSeek DIRECT (deepseek.com),
+  # NOT the Qwen Cloud Token Plan (cloud_deepseek_v4pro above / qwencloud, quota
+  # exhausted before 09-09). Same model + reviewer role, funded direct endpoint.
+  cloud_deepseek_v4pro_direct:
+    runtime_profile: deepseek_direct_oai
+    real_model: deepseek-v4-pro
+    context: 131072
+    max_output_tokens: 65536
+    lifecycle_policy: cloud_noop
+    clients:
       simple-harness: true
 
   cloud_qwen38max-claude:
