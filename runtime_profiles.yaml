@@ -82,6 +82,19 @@ runtime_profiles:
     default_api_base: https://api.deepseek.com/anthropic
     provider: deepseek
 
+  # Human decision 2026-09-06: DeepSeek's OpenAI-compatible endpoint (NOT the
+  # /anthropic surface above — that one drives claude-code) so the SIMPLE-HARNESS
+  # reviewer reaches deepseek-v4-pro DIRECTLY at deepseek.com instead of the Qwen
+  # Cloud Token Plan (qwencloud), whose 1-week quota is exhausted until 09-09.
+  # No api_base_env: use default_api_base only, so DEEPSEEK_API_BASE (which the
+  # /anthropic profile reads) cannot redirect this OpenAI path. The harness
+  # adapter appends /v1; verified 2026-09-06: /v1/models lists deepseek-v4-pro.
+  deepseek_direct_oai:
+    backend: openai_compatible
+    default_api_base: https://api.deepseek.com
+    api_key_env: DEEPSEEK_API_KEY
+    provider: deepseek
+
   cloud_anthropic:
     backend: anthropic
     api_key_env: ANTHROPIC_API_KEY
@@ -166,14 +179,11 @@ runtime_profiles:
   # the P620 exposes an OpenAI-compatible API; the allocator only ROUTES to it
   # and NEVER owns its lifecycle: FreeToken there is systemd-managed and
   # survives reboot, so there is no `ft serve` to start, no PID to claim, no
-  # SSH. One alias -> one fixed endpoint (no pooling, no failover). The base
-  # URL is machine-specific and lives in the env var, never committed; the
-  # default host below is an illustrative placeholder. Set, e.g.:
-  #   P620_FREETOKEN_API_BASE=http://100.92.72.93:1919/v1
-  # An optional token may live in P620_FREETOKEN_API_KEY (never committed).
+  # SSH. One alias -> one fixed endpoint (no pooling, no failover). The P620 is
+  # a trusted LAN/Tailscale node with NO auth -- so no api_key_env -- and the
+  # endpoint is committed config here (like every other cloud profile), not an
+  # env var, so it resolves at every chain start with nothing to set by hand.
   p620_freetoken_remote:
     backend: openai_compatible
-    api_base_env: P620_FREETOKEN_API_BASE
-    default_api_base: http://p620-freetoken:1919/v1
-    api_key_env: P620_FREETOKEN_API_KEY
+    default_api_base: http://100.92.72.93:1919/v1
     provider: freetoken-remote
