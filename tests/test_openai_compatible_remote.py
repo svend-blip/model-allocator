@@ -139,3 +139,46 @@ def test_node_auth_token_is_env_backed_not_committed(monkeypatch):
     assert adapter.are_credentials_present()["present"] is False
     monkeypatch.setenv("AI_PC_1_API_TOKEN", "tok-from-env")
     assert adapter.are_credentials_present()["present"] is True
+
+# --- P620 remote FreeToken node (live acceptance, 2026-09-09) ---
+# The P620 runs systemd-managed FreeToken (Qwen3.6-35B-A3B-NVFP4) behind an
+# OpenAI-compatible API reached over Tailscale. It is just another
+# openai_compatible profile: one alias -> one fixed env-backed endpoint. These
+# pin the profile resolution and the model-identity check (a DIFFERENT served
+# model must NOT silently pass — acceptance criterion 3).
+
+P620_PROFILE = {
+    "backend": "openai_compatible",
+    "api_base_env": "P620_FREETOKEN_API_BASE",
+    "default_api_base": "http://p620-freetoken:1919/v1",
+    "api_key_env": "P620_FREETOKEN_API_KEY",
+    "provider": "freetoken-remote",
+}
+
+
+def test_p620_env_override_points_at_the_tailscale_endpoint(monkeypatch):
+    monkeypatch.setenv("P620_FREETOKEN_API_BASE", "http://p620.example:1919/v1")
+    base = OpenAICompatibleAdapter.api_base_from_profile(P620_PROFILE)
+    assert base == "http://p620.example:1919/v1"
+
+
+def test_p620_default_base_when_env_unset(monkeypatch):
+    monkeypatch.delenv("P620_FREETOKEN_API_BASE", raising=False)
+    base = OpenAICompatibleAdapter.api_base_from_profile(P620_PROFILE)
+    assert base == "http://p620-freetoken:1919/v1"
+
+
+def test_p620_model_identity_present_and_wrong_model_rejected(monkeypatch):
+    adapter = OpenAICompatibleAdapter(api_base="http://p620.example:1919/v1")
+
+    def fake_request(path, method="GET", timeout=5):
+        body = json.dumps({"data": [{"id": "Qwen3.6-35B-A3B-NVFP4"}]})
+        return {"status_code": 200, "body": body, "error": None}
+
+    monkeypatch.setattr(adapter, "_request", fake_request)
+    assert adapter.is_model_available("Qwen3.6-35B-A3B-NVFP4")["available"] is True
+    # a different served model must NOT silently pass validation
+    other = adapter.is_model_available("Qwen3.8-Flash-Next")
+    assert other["available"] is False
+    assert "not listed" in (other["error"] or "")
+

@@ -777,6 +777,20 @@ models:
 # Port 8090, NOT 8080: 8080 is the deliberate one-at-a-time port and is
 # reclaim-swept weekdays 14:00Z by the trade engine. Parameters are the
 # committed laguna-local baseline (GOAL 016: no performance tuning).
+  # P620 remote FreeToken node (SCOPE-remote-model-endpoints live acceptance,
+  # 2026-09-09). DPMtF references this alias only; the allocator resolves it to
+  # the fixed P620 Tailscale endpoint (P620_FREETOKEN_API_BASE). Externally
+  # managed -- lifecycle_policy persistent means the allocator never starts or
+  # stops the remote runtime; the P620 systemd service owns FreeToken's life.
+  p620-qwen36-35b-a3b:
+    runtime_profile: p620_freetoken_remote
+    real_model: Qwen3.6-35B-A3B-NVFP4
+    context: 262144
+    lifecycle_policy: persistent
+    clients:
+      opencode: true
+      claude-code: true
+
 runtime_instances:
   laguna-shared-118b:
     runtime_profile: local_llamacpp_laguna

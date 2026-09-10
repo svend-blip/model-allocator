@@ -160,3 +160,20 @@ runtime_profiles:
     default_host: 127.0.0.1
     gpu: cuda0
     qualified_runtime_version: "0.1.2"
+
+  # Remote AI-PC inference node: FreeToken on the P620, reached over Tailscale
+  # (SCOPE-remote-model-endpoints acceptance, 2026-09-09). openai_compatible --
+  # the P620 exposes an OpenAI-compatible API; the allocator only ROUTES to it
+  # and NEVER owns its lifecycle: FreeToken there is systemd-managed and
+  # survives reboot, so there is no `ft serve` to start, no PID to claim, no
+  # SSH. One alias -> one fixed endpoint (no pooling, no failover). The base
+  # URL is machine-specific and lives in the env var, never committed; the
+  # default host below is an illustrative placeholder. Set, e.g.:
+  #   P620_FREETOKEN_API_BASE=http://100.92.72.93:1919/v1
+  # An optional token may live in P620_FREETOKEN_API_KEY (never committed).
+  p620_freetoken_remote:
+    backend: openai_compatible
+    api_base_env: P620_FREETOKEN_API_BASE
+    default_api_base: http://p620-freetoken:1919/v1
+    api_key_env: P620_FREETOKEN_API_KEY
+    provider: freetoken-remote
