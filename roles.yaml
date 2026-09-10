@@ -432,9 +432,14 @@ roles:
     # Measured: TTFT 2.5-3.7 s without reasoning, ~46 tok/s, 131k KV floor,
     # simple-harness tool calls (write_file/shell/read_file) pass. Previous:
     # cloud_qwen38max-fast.
-    default_alias: freetoken-qwen38-flash-next
+    # Human decision 2026-09-10: the implementer moves to the P620 remote
+    # FreeToken node (Qwen3.6-35B-A3B-NVFP4, openai_compatible over Tailscale),
+    # after the p620-qwen36-35b-a3b alias passed live acceptance. Reached via
+    # P620_FREETOKEN_API_BASE in the allocator env; the P620 systemd service
+    # owns the runtime. Previous: freetoken-qwen38-flash-next (local).
+    default_alias: p620-qwen36-35b-a3b
     client_aliases:
-      simple-harness: freetoken-qwen38-flash-next
+      simple-harness: p620-qwen36-35b-a3b
 
   9000-reviewer:
     # Human decision 2026-09-06: deepseek-v4-pro DIRECT at deepseek.com

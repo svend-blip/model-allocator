@@ -790,6 +790,7 @@ models:
     clients:
       opencode: true
       claude-code: true
+      simple-harness: true
 
 runtime_instances:
   laguna-shared-118b:
