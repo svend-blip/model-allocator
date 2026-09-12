@@ -918,6 +918,43 @@ version, host, port, GPU and runtime state.
 
 ---
 
+### Qwen3.8-Flash-Next Abliterated: the validated unit argv
+
+A fourth FreeToken alias, `freetoken-qwen38-flash-next-abliterated`, serves the
+local FTW checkpoint `/data/ai-data/models/qwen38-flash-next-abliterated-ftw-fixed`
+as `Qwen3.8-Flash-Next-Abliterated-NVFP4` on `127.0.0.1:8091` (context 262144,
+FreeToken 0.1.2, same venv/profile `freetoken_qwen38_cuda0` as the alias above).
+The runtime was validated outside the allocator as the systemd unit
+`freetoken-qwen38-flash-next-abliterated.service`; the alias carries that unit's
+argv key by key (`--moe-strategy offload --ple-backend disk --quant-backend
+moe.nvfp4=triton` via `extra_args`) so `model-allocator start` launches the
+identical server, and a server the unit already started on 8091 serving this
+model is adopted rather than started twice. It is a **single-worker** runtime
+(`max_running_requests: 1`): FreeToken queues the second request itself; the
+allocator routes and never fans out.
+
+| Field | Value |
+|---|---|
+| Alias | `freetoken-qwen38-flash-next-abliterated` |
+| Runtime | FreeToken (`${FREETOKEN_QWEN38_BIN}`) |
+| Endpoint | `http://127.0.0.1:8091/v1` |
+| Context | 262144 |
+| Default allocator reasoning | `low` (per request; the server default stays xhigh) |
+| Supported reasoning | low / medium / xhigh |
+| Concurrency | 1 |
+| Cold-start wait | `start_timeout: 1200` s (readiness polling) |
+
+`start_timeout` is a FreeToken alias field: `model-allocator start` uses it when
+`--timeout` is not given, so this slow cold start does not weaken readiness
+validation for any other alias.
+
+```bash
+model-allocator list | grep abliterated
+model-allocator start  --alias freetoken-qwen38-flash-next-abliterated
+model-allocator status --alias freetoken-qwen38-flash-next-abliterated
+model-allocator stop   --alias freetoken-qwen38-flash-next-abliterated
+```
+
 ## ONYX runtime (optional, V5)
 
 > **Integration Pattern for LLMs**

@@ -782,6 +782,72 @@ models:
   # the fixed P620 Tailscale endpoint (P620_FREETOKEN_API_BASE). Externally
   # managed -- lifecycle_policy persistent means the allocator never starts or
   # stops the remote runtime; the P620 systemd service owns FreeToken's life.
+  # Qwen3.8-Flash-Next ABLITERATED (NVFP4, local FTW checkpoint). Registered
+  # 2026-09-12 from a runtime the Human validated OUTSIDE the allocator: the
+  # systemd unit freetoken-qwen38-flash-next-abliterated.service runs the very
+  # argv below on port 8091 (FreeToken 0.1.2, repo commit 9535656). The alias
+  # reproduces that argv one flag per key so the allocator can own the
+  # lifecycle the same way it does for the sibling alias above; a server the
+  # unit already started on 8091 serving this model is ADOPTED (inspect_port:
+  # external_freetoken, reusable), never started twice.
+  freetoken-qwen38-flash-next-abliterated:
+    runtime_profile: freetoken_qwen38_cuda0
+    real_model: Qwen3.8-Flash-Next-Abliterated-NVFP4
+    display_name: Qwen3.8-Flash-Next Abliterated NVFP4 (FreeToken MoE, 256k, single worker)
+    # Local checkpoint directory (FTW, hotfixed) — not a hub repo id.
+    model_path: /data/ai-data/models/qwen38-flash-next-abliterated-ftw-fixed
+    served_model_name: Qwen3.8-Flash-Next-Abliterated-NVFP4
+    port: 8091
+    # /v1/models reports max_model_len = context_length = 262144 (verified
+    # 2026-09-12); the readiness chain checks the live figure against this.
+    context: 262144
+    lifecycle_policy: stop_after_step
+    # Launch flags exactly as the validated unit — do not tune here.
+    max_seq_len_override: 262144
+    kv_reserve_tokens: 262144
+    max_prefill_length: 8192
+    moe_cache_auto: true
+    # SINGLE-WORKER runtime by design: FreeToken queues the second request
+    # itself (FIFO); the allocator only routes and never load-balances.
+    max_running_requests: 1
+    sampling_defaults: model
+    reasoning_parser: qwen3
+    tool_call_parser: qwen3_coder
+    # Flags without a schema key of their own; none of them is protected.
+    extra_args:
+      - --moe-strategy
+      - offload
+      - --ple-backend
+      - disk
+      - --quant-backend
+      - moe.nvfp4=triton
+    # Cold start loads a large FTW checkpoint, disk-backed PLE, a 262k KV
+    # reservation and CUDA graphs: `model-allocator start` waits this long
+    # (readiness polling, no sleeps) unless --timeout is given explicitly.
+    start_timeout: 1200
+    # Measured at READY 2026-09-12 via `model-allocator start` (86 s warm):
+    # 29287 MiB in use on the 32 GiB card. An exclusive workload — refuse
+    # up front rather than OOM minutes into the load.
+    min_free_vram_mib: 29500
+    # Per-request level (never a launch flag). The endpoint's own default is
+    # xhigh, which spent a whole 256-token output budget on reasoning before
+    # returning code; at low the requested Go implementation came back.
+    # low = ordinary implementation work; medium/xhigh are requested per
+    # role via SIMPLE_HARNESS_REASONING_EFFORT, not by changing the server.
+    reasoning_effort: low
+    qualification:
+      status: validated
+      runtime_version: "0.1.2"
+      gpu_class: RTX_5090
+      cuda_major: 13
+      launch: unit-argv
+      reasoning_efforts: [low, medium, xhigh]
+      reasoning_effort_default: xhigh
+      concurrency: 1
+    clients:
+      simple-harness: true
+      opencode: true
+
   p620-qwen36-35b-a3b:
     runtime_profile: p620_freetoken_remote
     real_model: Qwen3.6-35B-A3B-NVFP4

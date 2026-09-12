@@ -334,6 +334,22 @@ def cmd_run(args: argparse.Namespace) -> int:
     return EXIT_OK
 
 
+DEFAULT_START_TIMEOUT = 120
+
+
+def _start_timeout(args: argparse.Namespace, resolved: dict) -> int:
+    """The readiness wait for `start`: an explicit --timeout wins, then the
+    alias's own `start_timeout` (a runtime that cold-starts slowly declares
+    it), then the historical default."""
+    explicit = getattr(args, "timeout", None)
+    if explicit is not None:
+        return int(explicit)
+    configured = resolved.get("start_timeout")
+    if configured is not None:
+        return int(configured)
+    return DEFAULT_START_TIMEOUT
+
+
 def cmd_start(args: argparse.Namespace) -> int:
     resolver = Resolver(config_dir=_config_dir(args))
     try:
@@ -349,16 +365,17 @@ def cmd_start(args: argparse.Namespace) -> int:
         return EXIT_ERROR
 
     backend = resolved.get("backend")
+    timeout = _start_timeout(args, resolved)
     if backend == "ollama":
         result = adapter.start_model()
     elif backend == "openai_compatible":
         result = adapter.start()
     elif backend == "llama_cpp":
-        result = adapter.start(timeout=args.timeout)
+        result = adapter.start(timeout=timeout)
     elif backend == "sglang":
-        result = adapter.start(timeout=args.timeout)
+        result = adapter.start(timeout=timeout)
     elif backend == "freetoken":
-        result = adapter.start(timeout=args.timeout)
+        result = adapter.start(timeout=timeout)
     elif backend == "anthropic":
         result = adapter.start()
     else:
@@ -946,7 +963,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_start = sub.add_parser("start", help="Warm up the backend runtime for an alias")
     p_start.add_argument("--alias", required=True, help="Logical alias name")
-    p_start.add_argument("--timeout", type=int, default=120, help="Timeout in seconds")
+    p_start.add_argument("--timeout", type=int, default=None,
+                         help="Readiness wait in seconds (default: the alias's "
+                              "start_timeout, else 120)")
     p_start.set_defaults(func=cmd_start)
 
     p_stop = sub.add_parser("stop", help="Stop the backend runtime for an alias")

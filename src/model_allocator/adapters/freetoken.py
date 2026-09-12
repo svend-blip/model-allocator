@@ -69,6 +69,9 @@ SLOW_INIT_MARKERS: tuple[str, ...] = (
 
 # The safetensors index that an indexed (sharded) checkpoint is keyed by.
 SAFETENSORS_INDEX = "model.safetensors.index.json"
+# The manifest a FreeToken-native (FTW) checkpoint is keyed by: `ft checkpoint`
+# writes it beside the freetoken-NNNNN.ftw shards it lists with byte sizes.
+FTW_MANIFEST = "freetoken_weight.json"
 
 # The version this adapter was qualified against on the RTX 5090 workstation
 # (FreeToken source 2757bb5). A newer runtime is allowed but reported, because
@@ -1469,6 +1472,11 @@ class FreeTokenAdapter:
         report["index"] = index_path
         report["checked"] = True
         if not os.path.lexists(index_path):
+            manifest_path = os.path.join(snapshot, FTW_MANIFEST)
+            if os.path.lexists(manifest_path):
+                # A FreeToken-native checkpoint: verify by ITS manifest.
+                report["index"] = manifest_path
+                return self._preflight_ftw(snapshot, manifest_path, report)
             single = os.path.join(snapshot, "model.safetensors")
             if os.path.lexists(single):
                 # Not an indexed checkpoint; verify the one file the same way.
@@ -1501,6 +1509,45 @@ class FreeTokenAdapter:
         report["shards"] = len(files)
         for name in files:
             self._check_artifact(snapshot, name, report)
+        return self._finish_preflight(report)
+
+    def _preflight_ftw(self, snapshot: str, manifest_path: str, report: dict) -> dict:
+        """Verify a FreeToken-native checkpoint by `freetoken_weight.json`.
+
+        The manifest lists every `.ftw` shard with its byte size and every
+        side file (PLE tables, tokenizer). A shard that exists with the wrong
+        size is a truncated copy, which no presence check would catch, so
+        sizes are compared where the manifest states them. Read-only, like
+        the safetensors branch.
+        """
+        try:
+            with open(manifest_path, encoding="utf-8") as handle:
+                manifest = json.load(handle)
+            if manifest.get("format") != "freetoken_weight":
+                raise ValueError(f"format is {manifest.get('format')!r}, "
+                                 f"expected 'freetoken_weight'")
+            shards = manifest["shards"]
+            if not isinstance(shards, list) or not shards:
+                raise ValueError("shards is not a non-empty list")
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            report.update(ok=False, code=MODEL_CACHE_INCOMPLETE,
+                          error=f"{FTW_MANIFEST} is malformed: {exc}")
+            return report
+
+        report["shards"] = len(shards)
+        for shard in shards:
+            name = str(shard.get("file", ""))
+            if not name:
+                report["missing"].append("<unnamed shard>")
+                continue
+            self._check_artifact(snapshot, name, report)
+            expected = shard.get("nbytes")
+            path = os.path.join(snapshot, name)
+            if (isinstance(expected, int) and os.path.isfile(path)
+                    and os.path.getsize(path) != expected):
+                report["incomplete"].append(name)
+        for name in manifest.get("side_files") or []:
+            self._check_artifact(snapshot, str(name), report)
         return self._finish_preflight(report)
 
     @staticmethod

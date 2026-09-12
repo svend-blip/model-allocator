@@ -167,6 +167,10 @@ FREETOKEN_ALIAS_FIELDS: dict[str, object] = {
     "enable_cache_report": bool,
     "disable_moe_prefill_overlap": bool,
     "extra_args": list,
+    # Seconds `start` waits for the readiness chain when the CLI is not
+    # given --timeout: a per-runtime figure, so a slow cold start never
+    # weakens readiness validation for every other alias.
+    "start_timeout": int,
     "qualified_runtime_version": str,
     "qualification": dict,
 }
