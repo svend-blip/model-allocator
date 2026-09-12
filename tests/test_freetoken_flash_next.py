@@ -225,13 +225,18 @@ class TestAliasConfiguration(unittest.TestCase):
         issues = schema.validate_profile(PROFILE, profiles["runtime_profiles"][PROFILE])
         self.assertEqual([i.message for i in issues], [])
 
-    def test_alias_is_assigned_only_to_the_implementer(self):
-        """Human decision 2026-09-02: 9000-implementer runs on Flash-Next."""
+    def test_alias_is_assigned_to_the_recorded_roles_only(self):
+        """Human decisions recorded in roles.yaml: 9000-implementer
+        (2026-09-02, reverted back to Flash-Next 2026-09-10) and
+        9000-execution-decomposer (2026-09-06, off the Token Plan). Any other
+        role picking up this GPU-exclusive alias is a configuration slip."""
         roles = yaml.safe_load((REPO_ROOT / "roles.yaml").read_text())["roles"]
-        for name, role in roles.items():
-            uses = (role.get("default_alias") == ALIAS
-                    or ALIAS in (role.get("client_aliases") or {}).values())
-            self.assertEqual(uses, name == "9000-implementer", name)
+        using = sorted(
+            name for name, role in roles.items()
+            if role.get("default_alias") == ALIAS
+            or ALIAS in (role.get("client_aliases") or {}).values()
+        )
+        self.assertEqual(using, ["9000-execution-decomposer", "9000-implementer"])
 
     def test_resolver_resolves_the_alias(self):
         with patch.dict(os.environ, {ENV_NAME: "/qualified/venv/bin/ft"}):
