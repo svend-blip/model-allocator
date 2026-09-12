@@ -462,13 +462,13 @@ roles:
     client_aliases:
       simple-harness: cloud_qwen38flash
   2000-implementer:
-    default_alias: cloud_qwen38flash
+    default_alias: cloud_deepseek_v4pro_direct
     client_aliases:
-      simple-harness: cloud_qwen38flash
+      simple-harness: cloud_deepseek_v4pro_direct
   2000-reviewer:
-    default_alias: cloud_qwen38flash
+    default_alias: cloud_deepseek_v4pro_direct
     client_aliases:
-      simple-harness: cloud_qwen38flash
+      simple-harness: cloud_deepseek_v4pro_direct
 
   # lightworker flow. The key must equal bridge_roles.role_key exactly:
   # `model-allocator run` resolves --role against this file and has no
