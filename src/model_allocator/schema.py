@@ -176,6 +176,10 @@ FREETOKEN_ALIAS_FIELDS: dict[str, object] = {
 }
 
 PROFILE_FIELDS: dict[str, object] = {
+    # Measured card size and the VRAM kept free for the knowledge layer's
+    # embedding server (Human decision 2026-09-14); see README "VRAM reserve".
+    "gpu_total_mib": int,
+    "vram_reserve_mib": int,
     "backend": str,
     "api_base_env": str,
     "default_api_base": str,

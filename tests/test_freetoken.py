@@ -239,7 +239,7 @@ class TestQualifiedProfiles(unittest.TestCase):
         self.assertEqual(pairs["--model-path"], "vrfai/Qwen3.8-27B-NVFP4")
         self.assertEqual(pairs["--gpu"], "0")
         self.assertEqual(pairs["--port"], "8088")
-        self.assertEqual(float(pairs["--memory-ratio"]), 0.90)
+        self.assertEqual(float(pairs["--memory-ratio"]), 0.86)
         self.assertEqual(pairs["--sampling-defaults"], "model")
         self.assertEqual(pairs["--reasoning-parser"], "auto")
         self.assertEqual(pairs["--tool-call-parser"], "auto")
@@ -730,8 +730,8 @@ class TestGpuPolicy(unittest.TestCase):
 
     def test_both_qualified_profiles_declare_what_they_need(self):
         """Measured from a successful load, not estimated."""
-        for name, floor in (("freetoken-qwen38-27b", 30000),
-                            ("freetoken-qwen36-35b-a3b", 30500)):
+        for name, floor in (("freetoken-qwen38-27b", 28500),
+                            ("freetoken-qwen36-35b-a3b", 28500)):
             resolved = _qualified_alias(name)
             self.assertEqual(resolved.get("min_free_vram_mib"), floor,
                              f"{name} must declare its measured VRAM floor")

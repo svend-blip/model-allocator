@@ -184,8 +184,11 @@ class TestAliasConfiguration(unittest.TestCase):
         alias = yaml.safe_load((REPO_ROOT / "models.yaml").read_text())["models"][ALIAS]
         for key in ("nvfp4_backend", "moe_backend", "attention_backend",
                     "moe_cache_size", "moe_cache_rate", "cache_type",
-                    "num_tokens", "num_pages", "memory_ratio"):
+                    "num_tokens", "num_pages"):
             self.assertNotIn(key, alias, f"{key} must not be pinned")
+        # The one budget flag pinned on purpose: the Human's VRAM reserve
+        # (2026-09-14) keeps ~4.5 GB free for the knowledge layer.
+        self.assertEqual(alias.get("memory_ratio"), 0.86)
         self.assertTrue(alias.get("moe_cache_auto") is True)
         self.assertEqual(alias.get("kv_reserve_tokens"), 131072)
         self.assertEqual(alias["qualification"]["auto_selected"]["attention_backend"],
@@ -318,6 +321,7 @@ class TestLaunch(unittest.TestCase):
             "--host", "127.0.0.1",
             "--port", "8090",
             "--gpu", "0",
+            "--memory-ratio", "0.86",
             "--kv-reserve-tokens", "131072",
             "--moe-cache-auto",
         ])
@@ -325,7 +329,7 @@ class TestLaunch(unittest.TestCase):
     def test_no_forced_backend_flags(self):
         argv = self._adapter().build_argv()
         for flag in ("--attention-backend", "--moe-backend", "--nvfp4-backend",
-                     "--moe-cache-size", "--expert-load", "--memory-ratio",
+                     "--moe-cache-size", "--expert-load",
                      "--num-tokens", "--reasoning-effort"):
             self.assertNotIn(flag, argv)
 
@@ -863,6 +867,7 @@ class TestFingerprint(unittest.TestCase):
         self.assertEqual(fp["launch_args"],
                          ["--model-path", MODEL, "--host", "127.0.0.1",
                           "--port", "8090", "--gpu", "0",
+                          "--memory-ratio", "0.86",
                           "--kv-reserve-tokens", "131072", "--moe-cache-auto"])
 
     def test_changes_with_material_launch_properties(self):

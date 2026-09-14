@@ -4,6 +4,12 @@ runtime_profiles:
     api_base_env: OLLAMA_BASE_URL
     default_api_base: http://127.0.0.1:11434
     gpu: cuda0
+    # VRAM reserve (Human decision 2026-09-14): 2.2 GB stays free for the
+    # DPMtF knowledge layer's embedding server (LEANN/contriever, measured
+    # 1.6-2.2 GB) so retrieval and a resident model coexist. Card size is the
+    # measured RTX 5090 figure. Aliases on this profile budget accordingly.
+    gpu_total_mib: 32607
+    vram_reserve_mib: 2200
 
   # Ollama's Anthropic-compatible endpoint used as a proxy for a ":cloud"
   # model. Ollama forwards to its own cloud, so there is no local GPU to
@@ -153,6 +159,12 @@ runtime_profiles:
     default_host: 127.0.0.1
     gpu: cuda0
     qualified_runtime_version: "0.1.2"
+    # VRAM reserve (Human decision 2026-09-14): 2.2 GB stays free for the
+    # DPMtF knowledge layer's embedding server (LEANN/contriever, measured
+    # 1.6-2.2 GB) so retrieval and a resident model coexist. Card size is the
+    # measured RTX 5090 figure. Aliases on this profile budget accordingly.
+    gpu_total_mib: 32607
+    vram_reserve_mib: 2200
 
   # Second FreeToken install, for Qwen3.8-Flash-Next-NVFP4. The qualification
   # ran from its own venv (`ft` 0.1.2 in a separate checkout), not the one
@@ -173,6 +185,12 @@ runtime_profiles:
     default_host: 127.0.0.1
     gpu: cuda0
     qualified_runtime_version: "0.1.2"
+    # VRAM reserve (Human decision 2026-09-14): 2.2 GB stays free for the
+    # DPMtF knowledge layer's embedding server (LEANN/contriever, measured
+    # 1.6-2.2 GB) so retrieval and a resident model coexist. Card size is the
+    # measured RTX 5090 figure. Aliases on this profile budget accordingly.
+    gpu_total_mib: 32607
+    vram_reserve_mib: 2200
 
   # Remote AI-PC inference node: FreeToken on the P620, reached over Tailscale
   # (SCOPE-remote-model-endpoints acceptance, 2026-09-09). openai_compatible --

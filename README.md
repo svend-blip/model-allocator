@@ -796,6 +796,29 @@ before starting the incoming one. Our own server's memory is excluded from the
 sum, or a restart would refuse on its own allocation, and a machine without
 `nvidia-smi` is reported as unchecked rather than blocked.
 
+### VRAM reserve for the knowledge layer (2026-09-14)
+
+DPMtF's knowledge layer searches a LEANN index by recomputing passage
+embeddings on the GPU (contriever, measured 1.6-2.2 GB resident). So that
+retrieval and a resident model can coexist, the three local GPU profiles
+declare `vram_reserve_mib: 2200` and the measured card size
+`gpu_total_mib: 32607`, and every FreeToken alias budgets for it:
+`memory_ratio: 0.86` instead of 0.90 (about 4.5 GB of the card stays free)
+and a start gate of `min_free_vram_mib: 28500`, so a FreeToken start is not
+refused merely because the embedding server is resident. `tests/test_vram_reserve.py`
+pins the arithmetic.
+
+Ollama is not launched by this allocator; its reserve lives in the service
+environment. Add to `/etc/systemd/system/ollama.service.d/override.conf`:
+
+```
+Environment="OLLAMA_GPU_OVERHEAD=3221225472"
+```
+
+(3 GiB in bytes: the 2.2 GB reserve plus working margin), then
+`systemctl daemon-reload && systemctl restart ollama`. Ollama's scheduler
+then plans every model load with that much VRAM left untouched.
+
 ### Ownership and arbitration
 
 A qualified profile at `memory_ratio: 0.90` consumes roughly 30 GB of the

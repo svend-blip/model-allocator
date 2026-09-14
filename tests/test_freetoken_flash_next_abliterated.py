@@ -38,7 +38,9 @@ SERVED = "Qwen3.8-Flash-Next-Abliterated-NVFP4"
 CONTEXT = 262144
 PORT = 8091
 
-# The validated unit's ExecStart, minus the executable and the `serve` verb.
+# The validated unit's ExecStart, minus the executable and the `serve` verb,
+# plus --memory-ratio 0.86: the Human's VRAM reserve (2026-09-14) for the
+# knowledge layer's embedding server.
 UNIT_ARGV = [
     "--model", MODEL_DIR,
     "--served-model-name", SERVED,
@@ -56,6 +58,7 @@ UNIT_ARGV = [
     "--sampling-defaults", "model",
     "--reasoning-parser", "qwen3",
     "--tool-call-parser", "qwen3_coder",
+    "--memory-ratio", "0.86",
 ]
 
 
