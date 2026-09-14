@@ -185,7 +185,12 @@ class Validator:
         if not reachable["reachable"]:
             result["warnings"].append(f"Cloud API base unreachable: {reachable['error']}")
 
-        if not credentials["present"] or not reachable["reachable"]:
+        # A profile that declares no api_key_env is a node without auth (a
+        # tailnet-restricted FreeToken node, for instance): the missing key
+        # is the configuration, not a failure. Only a declared-but-unset
+        # key, or an unreachable base, makes the client UNREACHABLE.
+        credentials_missing = bool(api_key_env) and not credentials["present"]
+        if credentials_missing or not reachable["reachable"]:
             result["client_support"][client] = "UNREACHABLE"
 
     def _validate_onyx(self, resolved: dict, client: str, result: dict) -> None:

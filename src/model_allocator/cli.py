@@ -56,6 +56,11 @@ def _get_backend_adapter(resolved: dict):
         return openai_adapter.OpenAICompatibleAdapter(
             api_base=openai_adapter.OpenAICompatibleAdapter.api_base_from_profile(resolved),
             api_key_env=resolved.get("api_key_env", ""),
+            real_model=resolved.get("real_model", ""),
+            enable_thinking=resolved.get("enable_thinking"),
+            max_running_requests=resolved.get("max_running_requests"),
+            provider=resolved.get("provider", ""),
+            invoke_timeout=resolved.get("invoke_timeout"),
         )
     if backend == "llama_cpp":
         return llama_cpp_adapter.LlamaCppAdapter(resolved)

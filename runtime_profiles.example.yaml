@@ -87,3 +87,20 @@ runtime_profiles:
     default_api_base: http://ai-pc-2:8090/v1
     api_key_env: AI_PC_2_API_TOKEN
     provider: remote_inference_node
+
+  # Second remote FreeToken node: the Lenovo P620 with an RTX 3080 10 GB
+  # (hostname omarchy-1), FreeToken 0.1.2 serving Qwen3.6-35B-A3B-NVFP4 with
+  # --moe-backend offload at 32768 context, reached over Tailscale through
+  # its HTTPS .ts.net endpoint (no tunnel, no proxy, no public exposure).
+  # Same contract as p620_freetoken_remote: openai_compatible, committed
+  # base URL, no auth (tailnet-restricted), the allocator routes and never
+  # owns the lifecycle. The node runs --max-running-requests 1, so it is a
+  # single-worker queue: max_running_requests 1 here makes this process
+  # serialize its own invocations to it as well. capabilities: [invoke]
+  # lets `model-allocator invoke --alias p620-qwen36` send one chat request.
+  remote_freetoken_p620_rtx3080:
+    backend: openai_compatible
+    default_api_base: https://omarchy-1.tail8c8e74.ts.net/v1
+    provider: freetoken-remote
+    max_running_requests: 1
+    capabilities: [invoke]

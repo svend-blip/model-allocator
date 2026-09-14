@@ -475,6 +475,53 @@ runtime_profiles:
     provider: minimax
 ```
 
+### Remote FreeToken node (`p620-qwen36`)
+
+`p620-qwen36` means **Qwen3.6-35B-A3B-NVFP4 running remotely through
+FreeToken on the Lenovo P620 RTX 3080 node over Tailscale**. The alias
+resolves to the profile `remote_freetoken_p620_rtx3080`, whose base URL is
+`https://omarchy-1.tail8c8e74.ts.net/v1` (the node's Tailscale HTTPS
+endpoint, tailnet-restricted, no auth, no tunnel or proxy in between).
+Context is 32768. The node runs FreeToken with `--max-running-requests 1`,
+so it is a single-worker queue: one request runs, the rest wait in FIFO
+order; the profile's `max_running_requests: 1` additionally serializes this
+process's own invocations per endpoint. No load balancing and no failover —
+one alias, one endpoint.
+
+```yaml
+runtime_profiles:
+  remote_freetoken_p620_rtx3080:
+    backend: openai_compatible
+    default_api_base: https://omarchy-1.tail8c8e74.ts.net/v1
+    provider: freetoken-remote
+    max_running_requests: 1
+    capabilities: [invoke]
+models:
+  p620-qwen36:
+    runtime_profile: remote_freetoken_p620_rtx3080
+    real_model: Qwen3.6-35B-A3B-NVFP4
+    context: 32768
+    lifecycle_policy: persistent
+    enable_thinking: false        # Qwen3.6 thinking would eat the output budget
+    clients: {opencode: true, claude-code: true, simple-harness: true}
+```
+
+`enable_thinking: false` on the alias becomes `chat_template_kwargs:
+{enable_thinking: false}` on every request the allocator sends itself
+(`invoke`), and `SIMPLE_HARNESS_ENABLE_THINKING=false` for the simple-harness
+client; an alias without the field leaves the model's default in force.
+
+```bash
+model-allocator validate --alias p620-qwen36      # WARNING/UNREACHABLE when the node is off, never an error
+model-allocator status --alias p620-qwen36        # reachable true/false + api_base
+model-allocator invoke --alias p620-qwen36 --prompt "Say OK."
+model-allocator run --role <role> --client simple-harness   # nothing to start: the node owns FreeToken
+```
+
+An offline node reports `reachable: false` and validates as `UNREACHABLE`
+for the alias only; unrelated profiles are untouched. `stop` and `unload`
+are no-ops — FreeToken on the node is managed there.
+
 ### Role mappings (`roles.yaml`)
 
 ```yaml

@@ -190,6 +190,13 @@ PROFILE_FIELDS: dict[str, object] = {
     # "subscription" (use the client's own login) | "api_key" (bill $api_key_env).
     # Anthropic profiles default to "api_key" when absent, for compatibility.
     "credentials": str,
+    # Worker limit of a REMOTE node the allocator only routes to. Declared,
+    # not enforced at the node: the runtime there serializes with its own
+    # limit (FreeToken --max-running-requests 1). With the value 1 the
+    # openai_compatible adapter serializes this process's invocations per
+    # endpoint so they queue instead of running concurrently. Local
+    # runtimes keep their alias-level field, which becomes an argv flag.
+    "max_running_requests": int,
     "gpu": str,
     # Absolute path to a runtime binary that is not on PATH. FreeToken's
     # qualified install is a project-local venv, so a service environment

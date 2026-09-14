@@ -885,8 +885,28 @@ models:
   p620-qwen36-35b-a3b:
     runtime_profile: p620_freetoken_remote
     real_model: Qwen3.6-35B-A3B-NVFP4
-    context: 262144
+    # 32768 (Human decision 2026-09-14): the node's RAM and VRAM do not
+    # carry the 262144 the server advertises; the enforced cap is lower.
+    context: 32768
     lifecycle_policy: persistent
+    clients:
+      opencode: true
+      claude-code: true
+      simple-harness: true
+
+  # p620-qwen36: Qwen3.6-35B-A3B-NVFP4 running remotely through FreeToken on
+  # the Lenovo P620 RTX 3080 node over Tailscale
+  # (https://omarchy-1.tail8c8e74.ts.net/v1). 32768 context is the node's
+  # configured limit. enable_thinking false: Qwen3.6 thinking can consume
+  # the whole output budget on this node; the flag travels per request as
+  # chat_template_kwargs.enable_thinking (allocator invoke) or
+  # SIMPLE_HARNESS_ENABLE_THINKING (simple-harness client).
+  p620-qwen36:
+    runtime_profile: remote_freetoken_p620_rtx3080
+    real_model: Qwen3.6-35B-A3B-NVFP4
+    context: 32768
+    lifecycle_policy: persistent
+    enable_thinking: false
     clients:
       opencode: true
       claude-code: true
