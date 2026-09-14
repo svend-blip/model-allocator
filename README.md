@@ -808,6 +808,14 @@ and a start gate of `min_free_vram_mib: 28500`, so a FreeToken start is not
 refused merely because the embedding server is resident. `tests/test_vram_reserve.py`
 pins the arithmetic.
 
+The abliterated Flash-Next alias goes further (Human decision 2026-09-14, so
+that a small Ollama model such as gemma3:4b can run beside it): KV reservation
+and seq-len override at 131072 instead of 262144 (the KV cache drops from
+6.19 GiB to ~3.1 GiB at no speed cost; scope-mcp keeps DSH sessions well
+under 131k), `memory_ratio: 0.79` so the auto MoE cache stays at the ~12.5 GB
+it had under the unit instead of growing into the savings, and a gate of
+26000 MiB. Measured budget: ~25.8 GB used, ~6.9 GB free.
+
 Ollama is not launched by this allocator; its reserve lives in the service
 environment. Add to `/etc/systemd/system/ollama.service.d/override.conf`:
 

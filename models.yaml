@@ -806,16 +806,23 @@ models:
     model_path: /data/ai-data/models/qwen38-flash-next-abliterated-ftw-fixed
     served_model_name: Qwen3.8-Flash-Next-Abliterated-NVFP4
     port: 8091
-    # /v1/models reports max_model_len = context_length = 262144 (verified
-    # 2026-09-12); the readiness chain checks the live figure against this.
-    context: 262144
+    # 131072, not the checkpoint's 262144 (Human decision 2026-09-14): the
+    # KV reservation is the one VRAM knob without a speed cost. At 262k the
+    # KV cache took 6.19 GiB and left 2.8 GB free; at 131k it takes ~3.1 GiB
+    # so a small Ollama model (gemma3:4b) and the knowledge layer's embedding
+    # server fit beside FreeToken. scope-mcp keeps DSH sessions well under
+    # 131k. /v1/models reports the override; the readiness chain checks it.
+    context: 131072
     lifecycle_policy: stop_after_step
-    # Launch flags as the validated unit, plus --memory-ratio 0.86: the
-    # Human's VRAM reserve (2026-09-14) keeps ~4.5 GB free for the knowledge
-    # layer's embedding server. Do not tune the other flags here.
-    memory_ratio: 0.86
-    max_seq_len_override: 262144
-    kv_reserve_tokens: 262144
+    # Launch flags as the validated unit, with three Human-decided changes
+    # (2026-09-14): --memory-ratio 0.79 caps the auto MoE cache at the size
+    # it had under the unit (~12.5 GB, so generation speed is unchanged)
+    # instead of letting it grow into the KV savings, and the KV reservation
+    # / seq-len override drop to 131072. Net: ~6.9 GB free beside FreeToken
+    # for LEANN (2 GB) plus gemma3:4b (3.5 GB). Do not tune the other flags.
+    memory_ratio: 0.79
+    max_seq_len_override: 131072
+    kv_reserve_tokens: 131072
     max_prefill_length: 8192
     moe_cache_auto: true
     # SINGLE-WORKER runtime by design: FreeToken queues the second request
@@ -836,10 +843,10 @@ models:
     # reservation and CUDA graphs: `model-allocator start` waits this long
     # (readiness polling, no sleeps) unless --timeout is given explicitly.
     start_timeout: 1200
-    # Measured at READY 2026-09-12 via `model-allocator start` (86 s warm):
-    # 29287 MiB in use on the 32 GiB card. An exclusive workload — refuse
-    # up front rather than OOM minutes into the load.
-    min_free_vram_mib: 28500
+    # 2026-09-14: at ratio 0.79 the runtime budget is ~25.8 GB; the gate
+    # tolerates a resident embedding server and gemma3:4b (32607 - 26000 =
+    # 6.6 GB). Measured 29287 MiB in use at the old 262k/auto launch.
+    min_free_vram_mib: 26000
     # Per-request level (never a launch flag). The endpoint's own default is
     # xhigh, which spent a whole 256-token output budget on reasoning before
     # returning code; at low the requested Go implementation came back.

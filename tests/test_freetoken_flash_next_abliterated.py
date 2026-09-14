@@ -2,7 +2,7 @@
 
 The runtime was validated OUTSIDE the allocator (systemd unit
 freetoken-qwen38-flash-next-abliterated.service, FreeToken 0.1.2, port 8091,
-262144 context, a single worker). The alias must reproduce that unit's argv
+131072 context since 2026-09-14, a single worker). The alias must reproduce that unit's argv
 flag for flag, and the allocator must treat the server as ready only when
 /v1/models actually exposes Qwen3.8-Flash-Next-Abliterated-NVFP4.
 
@@ -35,11 +35,11 @@ SIBLING = "freetoken-qwen38-flash-next"
 PROFILE = "freetoken_qwen38_cuda0"
 MODEL_DIR = "/data/ai-data/models/qwen38-flash-next-abliterated-ftw-fixed"
 SERVED = "Qwen3.8-Flash-Next-Abliterated-NVFP4"
-CONTEXT = 262144
+CONTEXT = 131072
 PORT = 8091
 
 # The validated unit's ExecStart, minus the executable and the `serve` verb,
-# plus --memory-ratio 0.86: the Human's VRAM reserve (2026-09-14) for the
+# plus --memory-ratio 0.79 and 131k KV/seq-len (Human decisions 2026-09-14) for the
 # knowledge layer's embedding server.
 UNIT_ARGV = [
     "--model", MODEL_DIR,
@@ -47,8 +47,8 @@ UNIT_ARGV = [
     "--host", "127.0.0.1",
     "--port", "8091",
     "--gpu", "0",
-    "--max-seq-len-override", "262144",
-    "--kv-reserve-tokens", "262144",
+    "--max-seq-len-override", "131072",
+    "--kv-reserve-tokens", "131072",
     "--max-prefill-length", "8192",
     "--moe-strategy", "offload",
     "--ple-backend", "disk",
@@ -58,7 +58,7 @@ UNIT_ARGV = [
     "--sampling-defaults", "model",
     "--reasoning-parser", "qwen3",
     "--tool-call-parser", "qwen3_coder",
-    "--memory-ratio", "0.86",
+    "--memory-ratio", "0.79",
 ]
 
 
