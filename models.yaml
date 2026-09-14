@@ -1,4 +1,20 @@
 models:
+  # Small side model that fits BESIDE the abliterated Flash-Next FreeToken
+  # (131k / ratio 0.79 leaves ~6.3 GB). Measured 2026-09-14: at Ollama's
+  # default 131072 context gemma3:4b took 5.2 GB and ran 46% on the CPU;
+  # at num_ctx 8192 it takes 2.7 GB, 100% GPU, and a LEANN in-process
+  # search still completes next to both (peak +2.4 GB). Load it through
+  # the allocator (which sends num_ctx), never with a bare `ollama run`.
+  side-gemma3-4b:
+    runtime_profile: local_ollama_cuda0
+    real_model: gemma3:4b
+    context: 8192
+    lifecycle_policy: persistent
+    max_output_tokens: 2048
+    clients:
+      opencode: true
+      pi: true
+
   imple-fast:
     runtime_profile: local_ollama_cuda0
     # Same blob as qwen36-27b-q4km:latest (both ID a50eda8ed977); this is
